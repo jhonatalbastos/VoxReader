@@ -70,6 +70,8 @@ class AppSettingsManager private constructor(context: Context) {
         private const val KEY_COVER_FIT_MODE = "key_cover_fit_mode"
         private const val KEY_NOTIFICATION_SHOW_IMAGES = "key_notification_show_images"
         private const val KEY_NOTIFICATION_IMAGE_DURATION_SEC = "key_notification_image_duration_sec"
+        private const val KEY_BACKGROUND_AUDIO_ENABLED = "key_background_audio_enabled"
+        private const val KEY_BACKGROUND_SYNC_ENABLED = "key_background_sync_enabled"
 
         @Volatile
         private var instance: AppSettingsManager? = null
@@ -137,6 +139,12 @@ class AppSettingsManager private constructor(context: Context) {
     // Duration in seconds to display chapter illustrations in notification (default 8s)
     private val _notificationImageDurationSec = MutableStateFlow(prefs.getInt(KEY_NOTIFICATION_IMAGE_DURATION_SEC, 8))
     val notificationImageDurationSec: StateFlow<Int> = _notificationImageDurationSec.asStateFlow()
+
+    private val _backgroundAudioEnabled = MutableStateFlow(prefs.getBoolean(KEY_BACKGROUND_AUDIO_ENABLED, true))
+    val backgroundAudioEnabled: StateFlow<Boolean> = _backgroundAudioEnabled.asStateFlow()
+
+    private val _backgroundSyncEnabled = MutableStateFlow(prefs.getBoolean(KEY_BACKGROUND_SYNC_ENABLED, true))
+    val backgroundSyncEnabled: StateFlow<Boolean> = _backgroundSyncEnabled.asStateFlow()
 
     private fun loadPlaybackMode(): PlaybackNotificationMode {
         val name = prefs.getString(KEY_PLAYBACK_MODE, PlaybackNotificationMode.MUSIC_PLAYER.name)
@@ -280,5 +288,23 @@ class AppSettingsManager private constructor(context: Context) {
         val clamped = seconds.coerceIn(3, 30)
         prefs.edit().putInt(KEY_NOTIFICATION_IMAGE_DURATION_SEC, clamped).apply()
         _notificationImageDurationSec.value = clamped
+    }
+
+    fun isBackgroundAudioEnabled(): Boolean {
+        return _backgroundAudioEnabled.value
+    }
+
+    fun setBackgroundAudioEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_BACKGROUND_AUDIO_ENABLED, enabled).apply()
+        _backgroundAudioEnabled.value = enabled
+    }
+
+    fun isBackgroundSyncEnabled(): Boolean {
+        return _backgroundSyncEnabled.value
+    }
+
+    fun setBackgroundSyncEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_BACKGROUND_SYNC_ENABLED, enabled).apply()
+        _backgroundSyncEnabled.value = enabled
     }
 }

@@ -38,6 +38,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -225,6 +227,41 @@ fun GoogleAccountSheet(
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
+
+                // Configurações de Sincronização em Segundo Plano
+                val settingsManager = com.example.util.AppSettingsManager.getInstance(androidx.compose.ui.platform.LocalContext.current)
+                val isBackgroundSyncEnabled by settingsManager.backgroundSyncEnabled.collectAsStateWithLifecycle()
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Sincronização em 2º Plano",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Salvar dados periodicamente na nuvem ou priorizar atualização instantânea em outros dispositivos.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = isBackgroundSyncEnabled,
+                            onCheckedChange = { settingsManager.setBackgroundSyncEnabled(it) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // Actions: Sync Now & Restore
                 Button(

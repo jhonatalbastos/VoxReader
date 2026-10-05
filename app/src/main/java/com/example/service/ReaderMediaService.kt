@@ -215,6 +215,10 @@ class ReaderMediaService : MediaBrowserServiceCompat() {
     }
 
     private val mediaSessionCallback = object : MediaSessionCompat.Callback() {
+        override fun onPlayFromSearch(query: String?, extras: android.os.Bundle?) {
+            playRecentOrFirstBook()
+        }
+
         override fun onPlay() {
             val tts = ReaderTtsManager.getExistingInstance()
             if (tts != null && tts.isReading.value) {

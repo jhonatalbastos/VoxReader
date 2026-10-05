@@ -309,6 +309,15 @@ fun LibraryScreen(
                 contentPadding = PaddingValues(bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+            // Reading Stats Component
+            item {
+                com.example.ui.components.LibraryReadingStats(
+                    booksRead = books.count { it.readingProgress >= 0.99f },
+                    daysStreak = 3, // Mock data
+                    totalMinutesRead = 125 // Mock data
+                )
+            }
+
             // Search Bar
             item {
                 OutlinedTextField(
