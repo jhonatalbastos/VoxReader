@@ -10,6 +10,9 @@ import android.util.Log
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.security.MessageDigest
+import org.json.JSONArray
+import org.json.JSONObject
 
 private const val TAG = "TtsCacheManager"
 
@@ -77,6 +80,85 @@ class TtsCacheManager(private val context: Context) {
         FileOutputStream(file).use { it.write(bytes) }
         return file
     }
+
+    // --- New ElevenLabs SHA-256 Hashed Caching System --- //
+
+    private fun computeSha256(input: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.UTF_8))
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    fun getCachedAudioElevenLabs(
+        text: String,
+        voiceId: String,
+        modelId: String,
+        stability: Float,
+        similarityBoost: Float,
+        style: Float
+    ): TtsSynthesisResult? {
+        val hashInput = "$text|$voiceId|$modelId|$stability|$similarityBoost|$style"
+        val hash = computeSha256(hashInput)
+
+        val audioFile = File(cacheDir, "$hash.mp3")
+        val alignmentsFile = File(cacheDir, "$hash.json")
+
+        if (audioFile.exists() && audioFile.length() > 0 && alignmentsFile.exists()) {
+            try {
+                val jsonString = alignmentsFile.readText()
+                val jsonArray = JSONArray(jsonString)
+                val alignments = mutableListOf<WordAlignment>()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    alignments.add(
+                        WordAlignment(
+                            word = obj.getString("word"),
+                            startSeconds = obj.getDouble("startSeconds").toFloat(),
+                            endSeconds = obj.getDouble("endSeconds").toFloat()
+                        )
+                    )
+                }
+                return TtsSynthesisResult(audioFile, alignments)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to parse alignments for hash $hash", e)
+                return null
+            }
+        }
+        return null
+    }
+
+    fun saveAudioToCacheElevenLabs(
+        text: String,
+        voiceId: String,
+        modelId: String,
+        stability: Float,
+        similarityBoost: Float,
+        style: Float,
+        audioFile: File,
+        alignments: List<WordAlignment>
+    ): File {
+        trimCacheIfNeeded()
+        val hashInput = "$text|$voiceId|$modelId|$stability|$similarityBoost|$style"
+        val hash = computeSha256(hashInput)
+
+        val targetAudioFile = File(cacheDir, "$hash.mp3")
+        audioFile.copyTo(targetAudioFile, overwrite = true)
+
+        val alignmentsFile = File(cacheDir, "$hash.json")
+        val jsonArray = JSONArray()
+        for (alignment in alignments) {
+            val obj = JSONObject().apply {
+                put("word", alignment.word)
+                put("startSeconds", alignment.startSeconds)
+                put("endSeconds", alignment.endSeconds)
+            }
+            jsonArray.put(obj)
+        }
+        alignmentsFile.writeText(jsonArray.toString())
+
+        return targetAudioFile
+    }
+
+    // ---------------------------------------------------- //
 
     private fun trimCacheIfNeeded() {
         try {
