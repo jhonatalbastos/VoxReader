@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">VoxReader</string>
+    <string name="tab_library">Biblioteca</string>
+    <string name="tab_recent">Lendo Agora</string>
+    <string name="tab_settings">Ajustes</string>
+    <string name="btn_import_book">Importar Livro</string>
+    <string name="btn_read_aloud">Ler em Voz Alta</string>
+    <string name="btn_stop_tts">Parar Leitura</string>
+    <string name="btn_pause_tts">Pausar</string>
+    <string name="btn_resume_tts">Continuar</string>
+    <string name="title_edge_tts">Vozes Edge TTS</string>
+    <string name="lbl_voice_speed">Velocidade de Leitura</string>
+    <string name="lbl_voice_pitch">Tom da Voz</string>
+    <string name="lbl_per_book_settings">Configurações para este livro</string>
+    <string name="empty_library_title">Sua Biblioteca está Vazia</string>
+    <string name="empty_library_desc">Importe arquivos EPUB, TXT ou Markdown ou experimente os clássicos incluídos!</string>
+    <string name="widget_name">VoxReader Mini Player</string>
+    <string name="widget_description">Selecione entre os últimos livros abertos e controle a narração diretamente na tela inicial.</string>
+</resources>

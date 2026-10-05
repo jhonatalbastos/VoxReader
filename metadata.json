@@ -1,0 +1,6 @@
+{
+  "name": "VoxReader",
+  "description": "Leitor moderno de eBooks (EPUB, TXT, MD) com leitura em voz alta neural Edge TTS, seleção de vozes e velocidade personalizada por livro.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

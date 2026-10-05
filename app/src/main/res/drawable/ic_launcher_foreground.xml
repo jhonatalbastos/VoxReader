@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Glowing sound wave arcs above book -->
+    <!-- Sound wave 1 (innermost) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:pathData="M 46,39 A 10,10 0 0,1 62,39" />
+
+    <!-- Sound wave 2 (middle) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#38BDF8"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:pathData="M 40,33 A 18,18 0 0,1 68,33" />
+
+    <!-- Sound wave 3 (outermost) -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#F59E0B"
+        android:strokeWidth="2.8"
+        android:strokeLineCap="round"
+        android:pathData="M 34,27 A 26,26 0 0,1 74,27" />
+
+    <!-- Audio pulse center dot -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M 54,43 m -2.5,0 a 2.5,2.5 0 1,1 5,0 a 2.5,2.5 0 1,1 -5,0" />
+
+    <!-- Book Left Page -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M 52,50 C 42,47 34,48 26,51 L 26,79 C 34,76 42,75 52,78 Z" />
+
+    <!-- Book Right Page -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M 56,50 C 66,47 74,48 82,51 L 82,79 C 74,76 66,75 56,78 Z" />
+
+    <!-- Book Spine / Central Binding -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M 52,50 L 56,50 L 56,80 L 52,80 Z" />
+
+    <!-- Text line hints on Left Page -->
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M 31,57 L 47,55 L 47,57 L 31,59 Z" />
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M 31,63 L 47,61 L 47,63 L 31,65 Z" />
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M 31,69 L 43,67 L 43,69 L 31,71 Z" />
+
+    <!-- Text line hints on Right Page -->
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M 61,55 L 77,57 L 77,59 L 61,57 Z" />
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M 61,61 L 77,63 L 77,65 L 61,63 Z" />
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M 61,67 L 73,69 L 73,71 L 61,69 Z" />
+
+    <!-- Play / Voice Accent Badge at bottom right of book -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M 70,72 L 84,80 L 70,88 Z" />
+
+</vector>
