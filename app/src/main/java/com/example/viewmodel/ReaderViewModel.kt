@@ -768,6 +768,10 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    suspend fun testGeminiApiKey(apiKey: String): Result<String> {
+        return ttsManager.geminiTtsClient.testApiKey(apiKey)
+    }
+
     fun deleteGeminiApiKey(keyId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteApiKeyById(keyId)

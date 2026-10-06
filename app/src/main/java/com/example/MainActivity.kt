@@ -135,6 +135,9 @@ fun VoxReaderApp(
                     viewModel = viewModel,
                     onBackToLibrary = {
                         currentScreen = AppScreen.LIBRARY
+                    },
+                    onOpenSettings = {
+                        currentScreen = AppScreen.SETTINGS
                     }
                 )
             }

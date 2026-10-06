@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,6 +36,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -62,7 +64,8 @@ fun VoiceSettingsSheet(
     book: BookEntity,
     onDismiss: () -> Unit,
     onSaveSettings: (engine: String, voiceId: String, speed: Float, pitch: Float) -> Unit,
-    onTestVoice: (engine: String, voiceId: String, speed: Float, pitch: Float) -> Unit
+    onTestVoice: (engine: String, voiceId: String, speed: Float, pitch: Float) -> Unit,
+    onManageGeminiKeys: () -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
@@ -184,6 +187,53 @@ fun VoiceSettingsSheet(
             Spacer(modifier = Modifier.height(10.dp))
 
             if (selectedEngine == "GEMINI_TTS") {
+                // Card de atalho para gerenciamento de chaves
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onManageGeminiKeys() },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.VpnKey,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Chaves de API Google AI Studio",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Toque para adicionar, testar ou alternar chaves",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(
+                            onClick = onManageGeminiKeys,
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text("Gerenciar", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 // Gemini Voices Catalog
                 Text(
                     text = "Vozes com IA Gemini 3.5 (Google AI Studio):",

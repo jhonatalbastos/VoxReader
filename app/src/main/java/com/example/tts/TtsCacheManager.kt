@@ -40,7 +40,8 @@ class TtsCacheManager(private val context: Context) {
     ): String {
         val speedStr = "%.2f".format(speed).replace('.', '_')
         val cleanEngine = engine.lowercase()
-        return "tts_${bookId}_c${chapterIndex}_p${paragraphIndex}_${cleanEngine}_${voiceId}_${speedStr}.mp3"
+        val ext = if (cleanEngine.contains("gemini")) "wav" else "mp3"
+        return "tts_${bookId}_c${chapterIndex}_p${paragraphIndex}_${cleanEngine}_${voiceId}_${speedStr}.$ext"
     }
 
     fun getCachedFile(
@@ -52,7 +53,12 @@ class TtsCacheManager(private val context: Context) {
         speed: Float
     ): File? {
         val file = File(cacheDir, getFileName(bookId, chapterIndex, paragraphIndex, engine, voiceId, speed))
-        return if (file.exists() && file.length() > 0) file else null
+        if (file.exists() && file.length() > 0) return file
+        val speedStr = "%.2f".format(speed).replace('.', '_')
+        val cleanEngine = engine.lowercase()
+        val legacyFile = File(cacheDir, "tts_${bookId}_c${chapterIndex}_p${paragraphIndex}_${cleanEngine}_${voiceId}_${speedStr}.mp3")
+        if (legacyFile.exists() && legacyFile.length() > 0) return legacyFile
+        return null
     }
 
     fun isCached(

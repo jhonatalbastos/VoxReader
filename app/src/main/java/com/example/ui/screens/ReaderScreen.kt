@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -110,7 +111,8 @@ import com.example.viewmodel.ReaderViewModel
 @Composable
 fun ReaderScreen(
     viewModel: ReaderViewModel,
-    onBackToLibrary: () -> Unit
+    onBackToLibrary: () -> Unit,
+    onOpenSettings: () -> Unit = {}
 ) {
     val book by viewModel.currentBook.collectAsStateWithLifecycle()
     val chapters by viewModel.chapters.collectAsStateWithLifecycle()
@@ -125,11 +127,13 @@ fun ReaderScreen(
     val activeEngine by viewModel.ttsManager.activeEngine.collectAsStateWithLifecycle()
     val statusMessage by viewModel.ttsManager.statusMessage.collectAsStateWithLifecycle()
     val taskState by viewModel.downloadTaskState.collectAsStateWithLifecycle()
+    val apiKeys by viewModel.apiKeys.collectAsStateWithLifecycle()
 
     var showControls by remember { mutableStateOf(true) }
     var showTocSheet by remember { mutableStateOf(false) }
     var showAppearanceSheet by remember { mutableStateOf(false) }
     var showVoiceSettingsSheet by remember { mutableStateOf(false) }
+    var showGeminiKeysDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var showNegativeWordsDialog by remember { mutableStateOf(false) }
     var showEditChapterDialog by remember { mutableStateOf(false) }
@@ -298,6 +302,14 @@ fun ReaderScreen(
                                 modifier = Modifier.testTag("btn_reader_appearance")
                             ) {
                                 Icon(Icons.Default.FormatSize, contentDescription = "Diagramação e Aparência", tint = readerTextColor)
+                            }
+
+                            // General Settings
+                            IconButton(
+                                onClick = onOpenSettings,
+                                modifier = Modifier.testTag("btn_reader_settings")
+                            ) {
+                                Icon(Icons.Default.Settings, contentDescription = "Configurações Gerais", tint = readerTextColor)
                             }
                         }
                     }
@@ -552,7 +564,21 @@ fun ReaderScreen(
             },
             onTestVoice = { engine, voiceId, speed, pitch ->
                 viewModel.testVoice(engine, voiceId, speed, pitch)
+            },
+            onManageGeminiKeys = {
+                showGeminiKeysDialog = true
             }
+        )
+    }
+
+    if (showGeminiKeysDialog) {
+        GeminiApiKeyDialog(
+            apiKeys = apiKeys,
+            onDismiss = { showGeminiKeysDialog = false },
+            onToggleKey = { viewModel.toggleGeminiApiKey(it) },
+            onDeleteKey = { viewModel.deleteGeminiApiKey(it) },
+            onAddKey = { key, label -> viewModel.addGeminiApiKey(key, label) },
+            onTestKey = { apiKey -> viewModel.testGeminiApiKey(apiKey) }
         )
     }
 

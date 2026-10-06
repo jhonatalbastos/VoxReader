@@ -42,10 +42,104 @@ object GeminiVoiceCatalog {
 class GeminiTtsClient(private val keyManager: GeminiApiKeyManager) {
 
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(25, TimeUnit.SECONDS)
-        .readTimeout(25, TimeUnit.SECONDS)
-        .writeTimeout(25, TimeUnit.SECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .writeTimeout(10, TimeUnit.SECONDS)
         .build()
+
+    // Caches the confirmed working model for this session to eliminate discovery overhead
+    @Volatile
+    private var activeWorkingModel: String? = null
+
+    /**
+     * Tests a specific API key with direct Google AI Studio models inspection
+     * and a short audio synthesis trial.
+     * Returns Result.success or Result.failure with human-readable error description.
+     */
+    suspend fun testApiKey(apiKey: String, voiceName: String = "Puck"): Result<String> = withContext(Dispatchers.IO) {
+        val cleanKey = apiKey.trim().replace("\n", "").replace("\r", "")
+        if (cleanKey.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Chave da API vazia."))
+        }
+
+        // 1. Direct validation via Google AI Studio models catalog endpoint
+        val modelsUrl = "https://generativelanguage.googleapis.com/v1beta/models?key=$cleanKey"
+        val pingRequest = Request.Builder()
+            .url(modelsUrl)
+            .get()
+            .build()
+
+        val modelsResponse = try {
+            httpClient.newCall(pingRequest).execute()
+        } catch (e: Exception) {
+            return@withContext Result.failure(IOException("Falha de conexão com os servidores da Google: ${e.localizedMessage ?: "Tempo esgotado"}"))
+        }
+
+        val responseCode = modelsResponse.code
+        val responseBody = modelsResponse.body?.string() ?: ""
+
+        if (!modelsResponse.isSuccessful) {
+            val userMsg = try {
+                val json = JSONObject(responseBody)
+                val err = json.optJSONObject("error")
+                val errMsg = err?.optString("message", "") ?: ""
+                when {
+                    responseCode == 400 && (errMsg.contains("API key not valid", ignoreCase = true) || errMsg.contains("INVALID_ARGUMENT", ignoreCase = true)) ->
+                        "Chave de API inválida. Verifique se copiou a chave completa gerada no Google AI Studio (aistudio.google.com)."
+                    responseCode == 403 ->
+                        "Permissão negada (HTTP 403). Verifique se a Generative Language API está ativada no seu projeto Google Cloud."
+                    responseCode == 429 ->
+                        "Limite de requisições excedido (HTTP 429 - Quota). A chave é válida, mas aguarde alguns instantes."
+                    else -> "Erro no Google AI Studio (HTTP $responseCode): ${errMsg.ifBlank { responseBody.take(120) }}"
+                }
+            } catch (_: Exception) {
+                "Google AI Studio retornou HTTP $responseCode: ${responseBody.take(100)}"
+            }
+            return@withContext Result.failure(IOException(userMsg))
+        }
+
+        // Chave é autêntica e válida na Google AI Studio!
+        val availableModelNames = mutableListOf<String>()
+        try {
+            val json = JSONObject(responseBody)
+            val modelsArray = json.optJSONArray("models")
+            if (modelsArray != null) {
+                for (i in 0 until modelsArray.length()) {
+                    val m = modelsArray.optJSONObject(i)
+                    val name = m?.optString("name", "")?.removePrefix("models/") ?: ""
+                    if (name.isNotBlank()) availableModelNames.add(name)
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 2. Testar síntese real de áudio com os modelos suportados
+        val testModels = mutableListOf<String>()
+        activeWorkingModel?.let { testModels.add(it) }
+        listOf(
+            "gemini-3.8-flash-tts",
+            "gemini-3.8-flash-lite-tts",
+            "gemini-2.5-flash-tts",
+            "gemini-2.5-flash",
+            "gemini-2.0-flash"
+        ).forEach { m ->
+            if (!testModels.contains(m)) testModels.add(m)
+        }
+
+        for (model in testModels) {
+            try {
+                val audio = executeSynthesis(cleanKey, "Teste de voz do Google AI Studio.", voiceName, model)
+                if (audio.isNotEmpty()) {
+                    activeWorkingModel = model
+                    return@withContext Result.success("Chave 100% válida e ativa! Áudio sintetizado com sucesso no modelo $model.")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Teste de síntese falhou com $model: ${e.message}")
+            }
+        }
+
+        val modelSummary = if (availableModelNames.isNotEmpty()) "${availableModelNames.size} modelos autorizados" else "acesso liberado"
+        Result.success("Chave validada com sucesso no Google AI Studio ($modelSummary).")
+    }
 
     /**
      * Synthesizes text into audio bytes using Google AI Studio (Gemini) TTS.
@@ -59,7 +153,13 @@ class GeminiTtsClient(private val keyManager: GeminiApiKeyManager) {
         val cleanText = text.trim()
         if (cleanText.isBlank()) return@withContext ByteArray(0)
 
-        val chunks = splitIntoChunks(cleanText, maxChunkSize = 350)
+        // Se o texto for curto (até 450 caracteres), sintetiza direto em uma única requisição rápida
+        if (cleanText.length <= 450) {
+            val singleAudio = synthesizeSingleChunkWithRetry(cleanText, voiceName)
+            return@withContext if (isWav(singleAudio)) singleAudio else wrapPcmWithWavHeader(singleAudio)
+        }
+
+        val chunks = splitIntoChunks(cleanText, maxChunkSize = 400)
         val pcmStreams = mutableListOf<ByteArray>()
 
         for (chunk in chunks) {
@@ -76,38 +176,68 @@ class GeminiTtsClient(private val keyManager: GeminiApiKeyManager) {
         wrapPcmWithWavHeader(combinedPcm.toByteArray(), sampleRate = 24000, channels = 1, bitsPerSample = 16)
     }
 
+    private fun isWav(audioData: ByteArray): Boolean {
+        return audioData.size > 12 &&
+            String(audioData.copyOfRange(0, 4)) == "RIFF" &&
+            String(audioData.copyOfRange(8, 12)) == "WAVE"
+    }
+
     private suspend fun synthesizeSingleChunkWithRetry(
         chunkText: String,
         voiceName: String
     ): ByteArray {
         val excludedKeys = mutableSetOf<String>()
         var attempts = 0
-        val maxAttempts = 6
+        val maxAttempts = 3
         var lastError: Exception? = null
+
+        val candidateModels = mutableListOf<String>()
+        activeWorkingModel?.let { candidateModels.add(it) }
+        listOf(
+            "gemini-3.8-flash-tts",
+            "gemini-3.8-flash-lite-tts",
+            "gemini-2.5-flash-tts",
+            "gemini-2.5-flash",
+            "gemini-2.0-flash"
+        ).forEach { m ->
+            if (!candidateModels.contains(m)) candidateModels.add(m)
+        }
 
         while (attempts < maxAttempts) {
             val apiKey = keyManager.getNextApiKey(excludedKeys)
             if (apiKey.isNullOrBlank()) {
-                throw IllegalStateException("Nenhuma chave de API do Google AI Studio disponível. Verifique suas chaves em Configurações.")
+                throw IllegalStateException("Nenhuma chave de API do Google AI Studio ativa. Configure sua chave em Configurações > Chaves de API.")
             }
 
-            try {
-                // Try Gemini TTS models (gemini-2.5-flash-preview-tts / gemini-3.5-flash)
-                return executeSynthesis(apiKey, chunkText, voiceName, "gemini-2.5-flash-preview-tts")
-            } catch (e: Exception) {
-                Log.w(TAG, "Tentativa com gemini-2.5-flash-preview-tts falhou (${apiKey.take(6)}...): ${e.message}. Tentando gemini-3.5-flash...")
+            var keySucceeded = false
+            for (modelName in candidateModels) {
                 try {
-                    return executeSynthesis(apiKey, chunkText, voiceName, "gemini-3.5-flash")
-                } catch (e2: Exception) {
-                    lastError = e2
-                    Log.w(TAG, "Síntese falhou em ambos os modelos Gemini com chave ${apiKey.take(6)}...: ${e2.message}")
-                    excludedKeys.add(apiKey)
-                    attempts++
+                    val result = executeSynthesis(apiKey, chunkText, voiceName, modelName)
+                    if (result.isNotEmpty()) {
+                        activeWorkingModel = modelName
+                        return result
+                    }
+                } catch (e: Exception) {
+                    lastError = e
+                    Log.w(TAG, "Tentativa com $modelName falhou (${apiKey.take(6)}...): ${e.message}")
+                    if (e.message?.contains("404") == true && activeWorkingModel == modelName) {
+                        activeWorkingModel = null
+                    }
+                    if (e.message?.contains("API key not valid", ignoreCase = true) == true ||
+                        e.message?.contains("401") == true ||
+                        e.message?.contains("403") == true) {
+                        break
+                    }
                 }
+            }
+
+            if (!keySucceeded) {
+                excludedKeys.add(apiKey)
+                attempts++
             }
         }
 
-        throw lastError ?: IOException("Falha ao sintetizar áudio com Google AI Studio após $attempts tentativas.")
+        throw lastError ?: IOException("Falha ao sintetizar áudio com Google AI Studio. Verifique sua chave de API ou conexão de rede.")
     }
 
     private fun executeSynthesis(
@@ -116,6 +246,12 @@ class GeminiTtsClient(private val keyManager: GeminiApiKeyManager) {
         voiceName: String,
         modelName: String
     ): ByteArray {
+        val safeVoiceName = if (GeminiVoiceCatalog.VOICES.any { it.name.equals(voiceName, ignoreCase = true) }) {
+            voiceName
+        } else {
+            "Puck"
+        }
+
         val safetySettings = JSONArray().apply {
             listOf(
                 "HARM_CATEGORY_HARASSMENT",
@@ -131,14 +267,8 @@ class GeminiTtsClient(private val keyManager: GeminiApiKeyManager) {
         }
 
         val jsonBody = JSONObject().apply {
-            put("systemInstruction", JSONObject().apply {
-                put("parts", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("text", "Você é um leitor de audiolivros em português. Narre o texto fornecido pelo usuário de forma natural, expressiva e clara. Não inclua cumprimentos, introduções ou explicações; narre exclusivamente o texto.")
-                    })
-                })
-            })
-
+            // OBSERVAÇÃO CRÍTICA: Modelos TTS puros do Gemini (como gemini-3.8-flash-tts) rejeitam
+            // `systemInstruction` com HTTP 400. O texto da narração deve ser enviado diretamente em contents.parts[0].text.
             put("contents", JSONArray().apply {
                 put(JSONObject().apply {
                     put("parts", JSONArray().apply {
@@ -156,7 +286,7 @@ class GeminiTtsClient(private val keyManager: GeminiApiKeyManager) {
                 put("speechConfig", JSONObject().apply {
                     put("voiceConfig", JSONObject().apply {
                         put("prebuiltVoiceConfig", JSONObject().apply {
-                            put("voiceName", voiceName)
+                            put("voiceName", safeVoiceName)
                         })
                     })
                 })
@@ -176,7 +306,13 @@ class GeminiTtsClient(private val keyManager: GeminiApiKeyManager) {
         val responseBody = response.body?.string() ?: ""
 
         if (!response.isSuccessful) {
-            throw IOException("Google AI Studio ($modelName) HTTP $responseCode: $responseBody")
+            val userError = try {
+                val errObj = JSONObject(responseBody).optJSONObject("error")
+                errObj?.optString("message", "") ?: responseBody
+            } catch (_: Exception) {
+                responseBody
+            }
+            throw IOException("Google AI Studio ($modelName) HTTP $responseCode: $userError")
         }
 
         val jsonResponse = JSONObject(responseBody)
@@ -193,23 +329,37 @@ class GeminiTtsClient(private val keyManager: GeminiApiKeyManager) {
 
         val content = candidate.optJSONObject("content")
         val parts = content?.optJSONArray("parts")
-        if (parts == null || parts.length() == 0) {
-            throw IOException("Nenhuma parte de áudio na resposta da API Gemini ($modelName). finishReason=$finishReason")
-        }
-
-        for (i in 0 until parts.length()) {
-            val part = parts.getJSONObject(i)
-            val inlineData = part.optJSONObject("inlineData")
-            if (inlineData != null) {
-                val base64Data = inlineData.optString("data", "")
-                if (base64Data.isNotBlank()) {
-                    val rawBytes = Base64.decode(base64Data, Base64.DEFAULT)
-                    return rawBytes
+        if (parts != null) {
+            for (i in 0 until parts.length()) {
+                val part = parts.getJSONObject(i)
+                val inlineData = part.optJSONObject("inlineData") ?: part.optJSONObject("inline_data")
+                if (inlineData != null) {
+                    val base64Data = inlineData.optString("data", "")
+                    if (base64Data.isNotBlank()) {
+                        return Base64.decode(base64Data, Base64.DEFAULT)
+                    }
                 }
             }
         }
 
-        throw IOException("Nenhum dado de áudio inline encontrado na resposta Gemini ($modelName).")
+        val steps = jsonResponse.optJSONArray("steps")
+        if (steps != null) {
+            for (i in 0 until steps.length()) {
+                val step = steps.optJSONObject(i)
+                val stepContent = step?.optJSONArray("content")
+                if (stepContent != null) {
+                    for (j in 0 until stepContent.length()) {
+                        val item = stepContent.optJSONObject(j)
+                        val data = item?.optString("data", "") ?: ""
+                        if (data.isNotBlank()) {
+                            return Base64.decode(data, Base64.DEFAULT)
+                        }
+                    }
+                }
+            }
+        }
+
+        throw IOException("Nenhum dado de áudio inline encontrado na resposta Gemini ($modelName). finishReason=$finishReason")
     }
 
     private fun splitIntoChunks(text: String, maxChunkSize: Int = 350): List<String> {

@@ -1561,7 +1561,8 @@ fun SettingsScreen(
             onDismiss = { showGeminiKeysDialog = false },
             onToggleKey = { viewModel.toggleGeminiApiKey(it) },
             onDeleteKey = { viewModel.deleteGeminiApiKey(it) },
-            onAddKey = { key, label -> viewModel.addGeminiApiKey(key, label) }
+            onAddKey = { key, label -> viewModel.addGeminiApiKey(key, label) },
+            onTestKey = { apiKey -> viewModel.testGeminiApiKey(apiKey) }
         )
     }
 }

@@ -280,6 +280,7 @@ class ReaderTtsManager(
                     )
                 }
 
+                _isBuffering.value = false
                 _statusMessage.value = null
                 _activeEngine.value = if (isGeminiEngine) TtsEngineType.GEMINI_AI_STUDIO else TtsEngineType.EDGE_NEURAL
                 playAudioFile(savedFile)
@@ -287,7 +288,53 @@ class ReaderTtsManager(
 
             } catch (e: Exception) {
                 Log.w(TAG, "Síntese principal falhou: ${e.message}", e)
-                _statusMessage.value = "Sintetizador indisponível: ${e.localizedMessage ?: "erro"}. Alternando para voz local."
+                val isApiKeyIssue = e.message?.contains("chave", ignoreCase = true) == true ||
+                    e.message?.contains("API", ignoreCase = true) == true ||
+                    e.message?.contains("401", ignoreCase = true) == true ||
+                    e.message?.contains("403", ignoreCase = true) == true
+
+                // Se o motor selecionado foi Gemini e falhou, tenta fallback automático para Edge TTS
+                if (isGeminiEngine) {
+                    _statusMessage.value = "IA Gemini indisponível. Alternando para voz neural Edge TTS..."
+                    try {
+                        val fallbackBytes = withContext(Dispatchers.IO) {
+                            edgeTtsClient.synthesizeToMp3(
+                                text = sanitizedText,
+                                voiceId = "pt-BR-FranciscaNeural",
+                                speed = currentSpeed,
+                                pitch = currentPitch
+                            )
+                        }
+                        if (fallbackBytes.isNotEmpty()) {
+                            val savedFile = withContext(Dispatchers.IO) {
+                                cacheManager.saveAudio(
+                                    bookId = currentBookId,
+                                    chapterIndex = currentChapterIndex,
+                                    paragraphIndex = currentIndex,
+                                    engine = "EDGE_TTS",
+                                    voiceId = "pt-BR-FranciscaNeural",
+                                    speed = currentSpeed,
+                                    bytes = fallbackBytes
+                                )
+                            }
+                            _isBuffering.value = false
+                            _statusMessage.value = null
+                            _activeEngine.value = TtsEngineType.EDGE_NEURAL
+                            playAudioFile(savedFile)
+                            triggerLookaheadPrefetch(currentIndex + 1)
+                            return@launch
+                        }
+                    } catch (fallbackEx: Exception) {
+                        Log.e(TAG, "Fallback Edge TTS também falhou: ${fallbackEx.message}")
+                    }
+                }
+
+                _isBuffering.value = false
+                _statusMessage.value = if (isApiKeyIssue) {
+                    "Chave Google AI Studio inválida ou sem permissão. Usando voz local."
+                } else {
+                    "IA indisponível (${e.localizedMessage?.take(40)}). Alternando para voz local."
+                }
                 playWithLocalTts(sanitizedText)
             }
         }
@@ -540,8 +587,9 @@ class ReaderTtsManager(
                     }
                 }
                 _statusMessage.value = null
+                val ext = if (engine == "GEMINI_TTS") ".wav" else ".mp3"
                 val sampleFile = withContext(Dispatchers.IO) {
-                    val file = File.createTempFile("sample_voice_", ".mp3", context.cacheDir)
+                    val file = File.createTempFile("sample_voice_", ext, context.cacheDir)
                     file.outputStream().use { it.write(bytes) }
                     file
                 }
