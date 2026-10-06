@@ -62,6 +62,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -1312,8 +1314,126 @@ fun SettingsScreen(
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { settingsManager.setDefaultVoiceEngine("PIPER_TTS") }
+                                .testTag("opt_default_engine_piper"),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (defaultVoiceEngine == "PIPER_TTS")
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                else
+                                    MaterialTheme.colorScheme.surface
+                            ),
+                            border = BorderStroke(
+                                width = if (defaultVoiceEngine == "PIPER_TTS") 2.dp else 1.dp,
+                                color = if (defaultVoiceEngine == "PIPER_TTS") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(
+                                        selected = defaultVoiceEngine == "PIPER_TTS",
+                                        onClick = { settingsManager.setDefaultVoiceEngine("PIPER_TTS") }
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Piper TTS", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color(0xFF10B981).copy(alpha = 0.15f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text("Local & Offline", fontSize = 9.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Vozes de alta qualidade executadas no próprio aparelho.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+
                     // Seletor de Voz para o motor padrão
-                    if (defaultVoiceEngine == "GEMINI_TTS") {
+                    if (defaultVoiceEngine == "PIPER_TTS") {
+                        val piperVoiceManager = com.example.tts.piper.PiperVoiceManager.getInstance(context)
+                        val installedVoiceIds by piperVoiceManager.installedVoiceIds.collectAsStateWithLifecycle(initialValue = emptySet())
+                        val installedVoices = piperVoiceManager.getAllVoices().filter { it.id in installedVoiceIds }
+                        var showPiperDialog by remember { mutableStateOf(false) }
+
+                        if (showPiperDialog) {
+                            com.example.ui.components.PiperVoiceManagerDialog(
+                                voiceManager = piperVoiceManager,
+                                selectedVoiceId = defaultVoiceId,
+                                onSelectVoice = { newVoiceId ->
+                                    settingsManager.setDefaultVoiceId(newVoiceId)
+                                    showPiperDialog = false
+                                },
+                                onDismiss = { showPiperDialog = false }
+                            )
+                        }
+
+                        Text(
+                            text = "Voz Padrão do Piper TTS:",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            installedVoices.take(4).forEach { voice ->
+                                FilterChip(
+                                    selected = defaultVoiceId == voice.id,
+                                    onClick = { settingsManager.setDefaultVoiceId(voice.id) },
+                                    label = { Text(voice.name, fontSize = 11.sp) }
+                                )
+                            }
+                        }
+
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Gerenciar Vozes Piper",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = "Baixe novas vozes offline ou remova as antigas.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Button(onClick = { showPiperDialog = true }) {
+                                    Text("Gerenciar")
+                                }
+                            }
+                        }
+                    } else if (defaultVoiceEngine == "GEMINI_TTS") {
                         Text(
                             text = "Voz Padrão do Gemini 3.5:",
                             style = MaterialTheme.typography.labelMedium,
