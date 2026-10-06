@@ -626,6 +626,48 @@ fun SettingsScreen(
                 }
             }
 
+            // Reading Reminders
+            var showReadingReminderDialog by remember { androidx.compose.runtime.mutableStateOf(false) }
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Lembrete de Leitura",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Notificar após tempo de leitura diário", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                            Text("Incentiva o hábito de leitura regular.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Button(onClick = { showReadingReminderDialog = true }) {
+                            Text("Configurar")
+                        }
+                    }
+                }
+            }
+            if (showReadingReminderDialog) {
+                com.example.ui.components.ReadingReminderDialog(
+                    onDismiss = { showReadingReminderDialog = false },
+                    onSaveReminder = {
+                        // TODO save logic here
+                    }
+                )
+            }
+
             // 2. ANDROID AUTO (CARRO)
             Card(
                 shape = RoundedCornerShape(16.dp),
