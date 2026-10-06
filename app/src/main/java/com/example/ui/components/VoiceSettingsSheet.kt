@@ -37,9 +37,19 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -157,7 +167,7 @@ fun VoiceSettingsSheet(
             )
             Spacer(modifier = Modifier.height(6.dp))
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FilterChip(
@@ -168,8 +178,7 @@ fun VoiceSettingsSheet(
                             selectedVoiceId = "pt-BR-FranciscaNeural"
                         }
                     },
-                    label = { Text("Edge TTS (Padrão)", fontSize = 12.sp) },
-                    modifier = Modifier.weight(1f)
+                    label = { Text("Edge TTS", fontSize = 12.sp) }
                 )
                 FilterChip(
                     selected = selectedEngine == "GEMINI_TTS",
@@ -179,14 +188,85 @@ fun VoiceSettingsSheet(
                             selectedVoiceId = "Puck"
                         }
                     },
-                    label = { Text("Gemini 3.5 (IA)", fontSize = 12.sp) },
-                    modifier = Modifier.weight(1f)
+                    label = { Text("Gemini 3.5 (IA)", fontSize = 12.sp) }
+                )
+                FilterChip(
+                    selected = selectedEngine == "PIPER_TTS",
+                    onClick = {
+                        selectedEngine = "PIPER_TTS"
+                    },
+                    label = { Text("Piper TTS (Local)", fontSize = 12.sp) }
                 )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            if (selectedEngine == "GEMINI_TTS") {
+            if (selectedEngine == "PIPER_TTS") {
+                val piperVoiceManager = com.example.tts.piper.PiperVoiceManager.getInstance(LocalContext.current)
+                val installedVoiceIds by piperVoiceManager.installedVoiceIds.collectAsStateWithLifecycle(initialValue = emptySet())
+                val installedVoices = piperVoiceManager.getAllVoices().filter { it.id in installedVoiceIds }
+
+                if (installedVoices.isEmpty()) {
+                    Text(
+                        text = "Nenhuma voz Piper instalada no dispositivo. Acesse as Configurações do app para gerenciar o catálogo.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                } else {
+                    Text(
+                        text = "Vozes Piper (Local/Offline):",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(installedVoices) { voice ->
+                            val isSelected = selectedVoiceId == voice.id
+                            Surface(
+                                selected = isSelected,
+                                onClick = { selectedVoiceId = voice.id },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(
+                                    width = if (isSelected) 2.dp else 1.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                modifier = Modifier.width(130.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = voice.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Text(
+                                        text = voice.quality,
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if (selectedEngine == "GEMINI_TTS") {
                 // Card de atalho para gerenciamento de chaves
                 Card(
                     modifier = Modifier
