@@ -519,7 +519,7 @@ class ReaderTtsManager(
         playbackJob?.cancel()
         playbackJob = scope.launch {
             try {
-                _statusMessage.value = "Gerando amostra em 160 kbps ($voiceId)..."
+                _statusMessage.value = "Gerando amostra de voz ($voiceId)..."
                 _isBuffering.value = true
                 val bytes = withContext(Dispatchers.IO) {
                     edgeTtsClient.synthesizeToMp3(sampleText, voiceId, speed, pitch)

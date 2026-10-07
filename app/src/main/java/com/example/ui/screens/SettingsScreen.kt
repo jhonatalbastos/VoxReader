@@ -1208,7 +1208,7 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Áudio de estúdio (160 kbps) com expressividade e pausas humanizadas",
+                                text = "Vozes neurais com carregamento ultra-rápido e entonação natural",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1241,12 +1241,12 @@ fun SettingsScreen(
                                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
-                                    Text("160 kbps HD", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                    Text("Neural HD", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                                 }
                             }
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = "Áudio de estúdio de alta fidelidade com pausas de respiração naturais em diálogos e pontuações.",
+                                text = "Áudio neural de alta fidelidade com carregamento instantâneo e entonação natural para leitura fluida.",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant

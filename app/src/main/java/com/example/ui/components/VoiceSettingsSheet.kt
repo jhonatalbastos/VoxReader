@@ -155,7 +155,7 @@ fun VoiceSettingsSheet(
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
-                                text = "HD 160k",
+                                text = "Neural HD",
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
@@ -331,7 +331,7 @@ fun VoiceSettingsSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "🎙️ Áudio em 160 kbps (alta fidelidade) com pausas de respiração e cadência natural para diálogos e pontuação.",
+                        text = "🎙️ Áudio neural de alta fidelidade com carregamento instantâneo e entonação natural para diálogos e leitura fluida.",
                         style = MaterialTheme.typography.bodySmall,
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -435,7 +435,7 @@ fun VoiceSettingsSheet(
             // Testing voice indicator
             if (isTestingVoice) {
                 Text(
-                    text = "Sintetizando amostra em 160 kbps via Edge TTS...",
+                    text = "Sintetizando amostra via Edge TTS...",
                     style = MaterialTheme.typography.bodySmall,
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.primary,
