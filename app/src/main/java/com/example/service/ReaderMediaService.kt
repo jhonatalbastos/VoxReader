@@ -612,10 +612,7 @@ class ReaderMediaService : MediaBrowserServiceCompat() {
             currentChapterTitle = chapter.title
 
             val ttsManager = ReaderTtsManager.getExistingInstance() ?: run {
-                val repo = BookRepository(db.bookDao())
-                val apiKeyMgr = com.example.tts.GeminiApiKeyManager(repo)
-                val geminiClient = com.example.tts.GeminiTtsClient(apiKeyMgr)
-                ReaderTtsManager(applicationContext, geminiClient)
+                ReaderTtsManager(applicationContext)
             }
 
             val vEngine = if (book.voiceEngine.isBlank()) "EDGE_TTS" else book.voiceEngine

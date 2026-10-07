@@ -162,23 +162,4 @@ interface BookDao {
 
     @Query("DELETE FROM bookmarks WHERE id = :id")
     suspend fun deleteBookmark(id: Long)
-
-    // Gemini API Keys
-    @Query("SELECT * FROM gemini_api_keys ORDER BY id ASC")
-    fun getAllApiKeys(): Flow<List<GeminiApiKeyEntity>>
-
-    @Query("SELECT * FROM gemini_api_keys WHERE isActive = 1 ORDER BY id ASC")
-    suspend fun getActiveApiKeysSync(): List<GeminiApiKeyEntity>
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertApiKey(key: GeminiApiKeyEntity): Long
-
-    @Update
-    suspend fun updateApiKey(key: GeminiApiKeyEntity)
-
-    @Delete
-    suspend fun deleteApiKey(key: GeminiApiKeyEntity)
-
-    @Query("DELETE FROM gemini_api_keys WHERE id = :id")
-    suspend fun deleteApiKeyById(id: Long)
 }

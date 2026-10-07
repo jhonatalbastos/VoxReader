@@ -24,14 +24,11 @@ private const val TAG = "ReaderTtsManager"
 
 enum class TtsEngineType {
     EDGE_NEURAL,
-    GEMINI_AI_STUDIO,
-    PIPER_LOCAL,
     LOCAL_ANDROID
 }
 
 class ReaderTtsManager(
-    private val context: Context,
-    val geminiTtsClient: GeminiTtsClient
+    private val context: Context
 ) {
     companion object {
         @Volatile
@@ -41,8 +38,6 @@ class ReaderTtsManager(
     }
 
     private val edgeTtsClient = EdgeTtsClient()
-    val piperVoiceManager = com.example.tts.piper.PiperVoiceManager.getInstance(context)
-    val piperTtsClient = com.example.tts.piper.PiperTtsClient.getInstance(context, piperVoiceManager)
     val cacheManager = TtsCacheManager(context)
     private val scope = CoroutineScope(Dispatchers.Main + Job())
 
@@ -57,7 +52,7 @@ class ReaderTtsManager(
     private var currentChapterIndex: Int = 0
     private var currentParagraphs: List<String> = emptyList()
     private var currentIndex: Int = 0
-    private var currentVoiceEngine: String = "EDGE_TTS" // "EDGE_TTS" or "GEMINI_TTS"
+    private var currentVoiceEngine: String = "EDGE_TTS"
     private var currentVoiceId: String = "pt-BR-FranciscaNeural"
     private var currentSpeed: Float = 1.0f
     private var currentPitch: Float = 1.0f
@@ -233,53 +228,26 @@ class ReaderTtsManager(
         if (cachedFile != null) {
             _isBuffering.value = false
             _statusMessage.value = null
-            _activeEngine.value = when (currentVoiceEngine) {
-                "GEMINI_TTS" -> TtsEngineType.GEMINI_AI_STUDIO
-                "PIPER_TTS" -> TtsEngineType.PIPER_LOCAL
-                else -> TtsEngineType.EDGE_NEURAL
-            }
+            _activeEngine.value = TtsEngineType.EDGE_NEURAL
             playAudioFile(cachedFile)
             triggerLookaheadPrefetch(currentIndex + 1)
             return
         }
 
-        // Needs synthesis
+        // Needs synthesis via Edge TTS HD
         _isBuffering.value = true
-        val isGeminiEngine = currentVoiceEngine == "GEMINI_TTS"
-        val isPiperEngine = currentVoiceEngine == "PIPER_TTS"
-        _statusMessage.value = when {
-            isGeminiEngine -> "Carregando fala com IA Gemini 3.5 ($currentVoiceId)..."
-            isPiperEngine -> "Sintetizando fala local Piper ($currentVoiceId)..."
-            else -> "Carregando fala neural Edge TTS..."
-        }
+        _statusMessage.value = "Carregando fala neural HD..."
 
         playbackJob?.cancel()
         playbackJob = scope.launch {
             try {
                 val audioBytes = withContext(Dispatchers.IO) {
-                    when {
-                        isGeminiEngine -> {
-                            geminiTtsClient.synthesizeSpeech(
-                                text = sanitizedText,
-                                voiceName = currentVoiceId
-                            )
-                        }
-                        isPiperEngine -> {
-                            piperTtsClient.synthesizeSpeech(
-                                text = sanitizedText,
-                                voiceId = currentVoiceId,
-                                speed = currentSpeed
-                            )
-                        }
-                        else -> {
-                            edgeTtsClient.synthesizeToMp3(
-                                text = sanitizedText,
-                                voiceId = currentVoiceId,
-                                speed = currentSpeed,
-                                pitch = currentPitch
-                            )
-                        }
-                    }
+                    edgeTtsClient.synthesizeToMp3(
+                        text = sanitizedText,
+                        voiceId = currentVoiceId,
+                        speed = currentSpeed,
+                        pitch = currentPitch
+                    )
                 }
 
                 if (audioBytes.isEmpty()) {
@@ -291,7 +259,7 @@ class ReaderTtsManager(
                         bookId = currentBookId,
                         chapterIndex = currentChapterIndex,
                         paragraphIndex = currentIndex,
-                        engine = currentVoiceEngine,
+                        engine = "EDGE_TTS",
                         voiceId = currentVoiceId,
                         speed = currentSpeed,
                         bytes = audioBytes
@@ -300,72 +268,15 @@ class ReaderTtsManager(
 
                 _isBuffering.value = false
                 _statusMessage.value = null
-                _activeEngine.value = when {
-                    isGeminiEngine -> TtsEngineType.GEMINI_AI_STUDIO
-                    isPiperEngine -> TtsEngineType.PIPER_LOCAL
-                    else -> TtsEngineType.EDGE_NEURAL
-                }
+                _activeEngine.value = TtsEngineType.EDGE_NEURAL
                 playAudioFile(savedFile)
                 triggerLookaheadPrefetch(currentIndex + 1)
 
             } catch (e: Exception) {
-                Log.w(TAG, "Síntese principal falhou: ${e.message}", e)
-                val isApiKeyIssue = e.message?.contains("chave", ignoreCase = true) == true ||
-                    e.message?.contains("API", ignoreCase = true) == true ||
-                    e.message?.contains("401", ignoreCase = true) == true ||
-                    e.message?.contains("403", ignoreCase = true) == true
-
-                // Se o motor selecionado foi Piper e falhou, tenta usar fala local do sistema
-                if (isPiperEngine) {
-                    _isBuffering.value = false
-                    _statusMessage.value = "Piper offline: usando voz do sistema Android."
-                    _activeEngine.value = TtsEngineType.LOCAL_ANDROID
-                    playWithLocalTts(sanitizedText)
-                    return@launch
-                }
-
-                // Se o motor selecionado foi Gemini e falhou, tenta fallback automático para Edge TTS
-                if (isGeminiEngine) {
-                    _statusMessage.value = "IA Gemini indisponível. Alternando para voz neural Edge TTS..."
-                    try {
-                        val fallbackBytes = withContext(Dispatchers.IO) {
-                            edgeTtsClient.synthesizeToMp3(
-                                text = sanitizedText,
-                                voiceId = "pt-BR-FranciscaNeural",
-                                speed = currentSpeed,
-                                pitch = currentPitch
-                            )
-                        }
-                        if (fallbackBytes.isNotEmpty()) {
-                            val savedFile = withContext(Dispatchers.IO) {
-                                cacheManager.saveAudio(
-                                    bookId = currentBookId,
-                                    chapterIndex = currentChapterIndex,
-                                    paragraphIndex = currentIndex,
-                                    engine = "EDGE_TTS",
-                                    voiceId = "pt-BR-FranciscaNeural",
-                                    speed = currentSpeed,
-                                    bytes = fallbackBytes
-                                )
-                            }
-                            _isBuffering.value = false
-                            _statusMessage.value = null
-                            _activeEngine.value = TtsEngineType.EDGE_NEURAL
-                            playAudioFile(savedFile)
-                            triggerLookaheadPrefetch(currentIndex + 1)
-                            return@launch
-                        }
-                    } catch (fallbackEx: Exception) {
-                        Log.e(TAG, "Fallback Edge TTS também falhou: ${fallbackEx.message}")
-                    }
-                }
-
+                Log.w(TAG, "Síntese Edge TTS falhou: ${e.message}", e)
                 _isBuffering.value = false
-                _statusMessage.value = if (isApiKeyIssue) {
-                    "Chave Google AI Studio inválida ou sem permissão. Usando voz local."
-                } else {
-                    "IA indisponível (${e.localizedMessage?.take(40)}). Alternando para voz local."
-                }
+                _statusMessage.value = "Sem conexão: usando voz local do sistema Android."
+                _activeEngine.value = TtsEngineType.LOCAL_ANDROID
                 playWithLocalTts(sanitizedText)
             }
         }
@@ -397,23 +308,19 @@ class ReaderTtsManager(
 
                     if (textToPreload.isNotBlank()) {
                         try {
-                            val audioBytes = when (currentVoiceEngine) {
-                                "GEMINI_TTS" -> geminiTtsClient.synthesizeSpeech(text = textToPreload, voiceName = currentVoiceId)
-                                "PIPER_TTS" -> piperTtsClient.synthesizeSpeech(text = textToPreload, voiceId = currentVoiceId, speed = currentSpeed)
-                                else -> edgeTtsClient.synthesizeToMp3(
-                                    text = textToPreload,
-                                    voiceId = currentVoiceId,
-                                    speed = currentSpeed,
-                                    pitch = currentPitch
-                                )
-                            }
+                            val audioBytes = edgeTtsClient.synthesizeToMp3(
+                                text = textToPreload,
+                                voiceId = currentVoiceId,
+                                speed = currentSpeed,
+                                pitch = currentPitch
+                            )
 
                             if (audioBytes.isNotEmpty()) {
                                 cacheManager.saveAudio(
                                     bookId = currentBookId,
                                     chapterIndex = currentChapterIndex,
                                     paragraphIndex = targetIndex,
-                                    engine = currentVoiceEngine,
+                                    engine = "EDGE_TTS",
                                     voiceId = currentVoiceId,
                                     speed = currentSpeed,
                                     bytes = audioBytes
@@ -600,31 +507,26 @@ class ReaderTtsManager(
     }
 
     /**
-     * Preview sample voice speech directly from Edge TTS or Google AI Studio.
+     * Preview sample voice speech directly from Edge TTS HD.
      */
-    fun testVoice(
-        engine: String,
+     fun testVoice(
+        engine: String = "EDGE_TTS",
         voiceId: String,
         speed: Float,
         pitch: Float,
-        sampleText: String = "Olá! Esta é uma demonstração de narração com voz neural."
+        sampleText: String = "Olá! Esta é uma demonstração de narração com voz neural em alta definição."
     ) {
         playbackJob?.cancel()
         playbackJob = scope.launch {
             try {
-                _statusMessage.value = "Gerando amostra ($voiceId)..."
+                _statusMessage.value = "Gerando amostra em 160 kbps ($voiceId)..."
                 _isBuffering.value = true
                 val bytes = withContext(Dispatchers.IO) {
-                    when (engine) {
-                        "GEMINI_TTS" -> geminiTtsClient.synthesizeSpeech(sampleText, voiceId)
-                        "PIPER_TTS" -> piperTtsClient.synthesizeSpeech(sampleText, voiceId, speed)
-                        else -> edgeTtsClient.synthesizeToMp3(sampleText, voiceId, speed, pitch)
-                    }
+                    edgeTtsClient.synthesizeToMp3(sampleText, voiceId, speed, pitch)
                 }
                 _statusMessage.value = null
-                val ext = if (engine == "EDGE_TTS") ".mp3" else ".wav"
                 val sampleFile = withContext(Dispatchers.IO) {
-                    val file = File.createTempFile("sample_voice_", ext, context.cacheDir)
+                    val file = File.createTempFile("sample_voice_", ".mp3", context.cacheDir)
                     file.outputStream().use { it.write(bytes) }
                     file
                 }
@@ -633,9 +535,7 @@ class ReaderTtsManager(
                 Log.e(TAG, "Falha no teste de voz: ${e.message}", e)
                 _statusMessage.value = "Erro no teste: ${e.localizedMessage}"
                 _isBuffering.value = false
-                if (engine == "PIPER_TTS") {
-                    playWithLocalTts(sampleText)
-                }
+                playWithLocalTts(sampleText)
             }
         }
     }

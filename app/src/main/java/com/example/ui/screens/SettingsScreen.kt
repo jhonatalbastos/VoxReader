@@ -86,7 +86,6 @@ import com.example.model.ReaderFont
 import com.example.model.ReaderTheme
 import com.example.model.VoiceCatalog
 import com.example.ui.components.BackupRestoreDialog
-import com.example.ui.components.GeminiApiKeyDialog
 import com.example.ui.components.MemoryDiagnosticsDialog
 import com.example.util.AppSettingsManager
 import com.example.util.CoverFitMode
@@ -129,11 +128,9 @@ fun SettingsScreen(
     val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
     val memoryStats by viewModel.memoryStats.collectAsStateWithLifecycle()
     val memoryLogs by viewModel.memoryLogs.collectAsStateWithLifecycle()
-    val apiKeys by viewModel.apiKeys.collectAsStateWithLifecycle()
 
     var showMemoryDialog by remember { mutableStateOf(false) }
     var showBackupDialog by remember { mutableStateOf(false) }
-    var showGeminiKeysDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -1185,7 +1182,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 7. VOZ NEURAL & LEITURA COM IA (EDGE TTS & GEMINI 3.5 IA)
+            // 7. VOZ NEURAL EM ALTA FIDELIDADE (MICROSOFT EDGE TTS HD)
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
@@ -1206,321 +1203,81 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Voz Neural & Leitura com IA",
+                                text = "Voz Neural em Alta Fidelidade",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Escolha o motor de leitura padrão (Edge TTS ou Gemini 3.5)",
+                                text = "Áudio de estúdio (160 kbps) com expressividade e pausas humanizadas",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
-                    // Motor Padrão Selector
-                    Text("Motor Padrão do Aplicativo:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-
-                    Row(
+                    // Motor Edge Neural HD Settings Card
+                    Card(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
                     ) {
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { settingsManager.setDefaultVoiceEngine("EDGE_TTS") }
-                                .testTag("opt_default_engine_edge"),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (defaultVoiceEngine == "EDGE_TTS")
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                else
-                                    MaterialTheme.colorScheme.surface
-                            ),
-                            border = BorderStroke(
-                                width = if (defaultVoiceEngine == "EDGE_TTS") 2.dp else 1.dp,
-                                color = if (defaultVoiceEngine == "EDGE_TTS") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RadioButton(
-                                        selected = defaultVoiceEngine == "EDGE_TTS",
-                                        onClick = { settingsManager.setDefaultVoiceEngine("EDGE_TTS") }
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Edge TTS", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                                }
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.RecordVoiceOver,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Microsoft Edge Neural HD", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                Spacer(modifier = Modifier.width(8.dp))
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
-                                    Text("Padrão Inicial", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                    Text("160 kbps HD", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                                 }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Rápido, gratuito e direto. Sem chaves de API.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
                             }
-                        }
-
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { settingsManager.setDefaultVoiceEngine("GEMINI_TTS") }
-                                .testTag("opt_default_engine_gemini"),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (defaultVoiceEngine == "GEMINI_TTS")
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                else
-                                    MaterialTheme.colorScheme.surface
-                            ),
-                            border = BorderStroke(
-                                width = if (defaultVoiceEngine == "GEMINI_TTS") 2.dp else 1.dp,
-                                color = if (defaultVoiceEngine == "GEMINI_TTS") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Áudio de estúdio de alta fidelidade com pausas de respiração naturais em diálogos e pontuações.",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RadioButton(
-                                        selected = defaultVoiceEngine == "GEMINI_TTS",
-                                        onClick = { settingsManager.setDefaultVoiceEngine("GEMINI_TTS") }
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Gemini 3.5", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0xFF8B5CF6).copy(alpha = 0.15f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text("IA Expressiva", fontSize = 9.sp, color = Color(0xFF8B5CF6), fontWeight = FontWeight.Bold)
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Entonação e riqueza de IA pelo Google AI Studio.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
+                    Text("Voz Padrão Global do Leitor:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clickable { settingsManager.setDefaultVoiceEngine("PIPER_TTS") }
-                                .testTag("opt_default_engine_piper"),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (defaultVoiceEngine == "PIPER_TTS")
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                else
-                                    MaterialTheme.colorScheme.surface
-                            ),
-                            border = BorderStroke(
-                                width = if (defaultVoiceEngine == "PIPER_TTS") 2.dp else 1.dp,
-                                color = if (defaultVoiceEngine == "PIPER_TTS") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RadioButton(
-                                        selected = defaultVoiceEngine == "PIPER_TTS",
-                                        onClick = { settingsManager.setDefaultVoiceEngine("PIPER_TTS") }
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Piper TTS", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0xFF10B981).copy(alpha = 0.15f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text("Local & Offline", fontSize = 9.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Vozes de alta qualidade executadas no próprio aparelho.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-
-                    // Seletor de Voz para o motor padrão
-                    if (defaultVoiceEngine == "PIPER_TTS") {
-                        val piperVoiceManager = com.example.tts.piper.PiperVoiceManager.getInstance(context)
-                        val installedVoiceIds by piperVoiceManager.installedVoiceIds.collectAsStateWithLifecycle(initialValue = emptySet())
-                        val installedVoices = piperVoiceManager.getAllVoices().filter { it.id in installedVoiceIds }
-                        var showPiperDialog by remember { mutableStateOf(false) }
-
-                        if (showPiperDialog) {
-                            com.example.ui.components.PiperVoiceManagerDialog(
-                                voiceManager = piperVoiceManager,
-                                selectedVoiceId = defaultVoiceId,
-                                onSelectVoice = { newVoiceId ->
-                                    settingsManager.setDefaultVoiceId(newVoiceId)
-                                    showPiperDialog = false
-                                },
-                                onTestVoiceSample = { voiceId ->
-                                    viewModel.testVoice("PIPER_TTS", voiceId, 1.0f, 1.0f)
-                                },
-                                onDismiss = { showPiperDialog = false }
-                            )
-                        }
-
-                        Text(
-                            text = "Voz Padrão do Piper TTS:",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
+                        val defaultEdgeVoices = listOf(
+                            "pt-BR-FranciscaNeural" to "Francisca (Natural)",
+                            "pt-BR-AntonioNeural" to "Antônio (Narrador)",
+                            "pt-BR-ThalitaNeural" to "Thalita (Expressiva)",
+                            "pt-BR-BrendaNeural" to "Brenda (Serena)",
+                            "pt-BR-FabioNeural" to "Fábio (Casual)",
+                            "pt-BR-DonatoNeural" to "Donato (Maduro)",
+                            "pt-PT-DuarteNeural" to "Duarte (PT)"
                         )
-                        Row(
-                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            installedVoices.take(4).forEach { voice ->
-                                FilterChip(
-                                    selected = defaultVoiceId == voice.id,
-                                    onClick = { settingsManager.setDefaultVoiceId(voice.id) },
-                                    label = { Text(voice.name, fontSize = 11.sp) }
-                                )
-                            }
-                        }
-
-                        Card(
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Gerenciar Vozes Piper",
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Text(
-                                        text = "Baixe novas vozes offline ou remova as antigas.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Button(onClick = { showPiperDialog = true }) {
-                                    Text("Gerenciar")
-                                }
-                            }
-                        }
-                    } else if (defaultVoiceEngine == "GEMINI_TTS") {
-                        Text(
-                            text = "Voz Padrão do Gemini 3.5:",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            val popularGeminiVoices = listOf("Puck", "Kore", "Aoede", "Charon")
-                            popularGeminiVoices.forEach { vName ->
-                                FilterChip(
-                                    selected = defaultVoiceId == vName,
-                                    onClick = { settingsManager.setDefaultVoiceId(vName) },
-                                    label = { Text("Gemini $vName", fontSize = 11.sp) }
-                                )
-                            }
-                        }
-
-                        // Botão de Gerenciamento de Chaves de API Gemini
-                        Card(
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Chaves de API do Google AI Studio",
-                                        fontWeight = FontWeight.Bold,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    val activeKeys = apiKeys.count { it.isActive }
-                                    Text(
-                                        text = if (activeKeys > 0) "$activeKeys chave(s) configurada(s)" else "Nenhuma chave inserida (usando padrão)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (activeKeys > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Button(
-                                    onClick = { showGeminiKeysDialog = true },
-                                    modifier = Modifier.testTag("btn_manage_gemini_keys_settings")
-                                ) {
-                                    Icon(Icons.Default.VpnKey, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Chaves API")
-                                }
-                            }
-                        }
-                    } else {
-                        // Edge TTS Default Voices
-                        Text("Voz Padrão do Edge TTS:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            val defaultEdgeVoices = listOf(
-                                "pt-BR-FranciscaNeural" to "Francisca",
-                                "pt-BR-AntonioNeural" to "Antônio",
-                                "pt-BR-ThalitaNeural" to "Thalita",
-                                "pt-PT-DuarteNeural" to "Duarte"
+                        defaultEdgeVoices.forEach { (vId, label) ->
+                            FilterChip(
+                                selected = defaultVoiceId == vId,
+                                onClick = { settingsManager.setDefaultVoiceId(vId) },
+                                label = { Text(label, fontSize = 11.sp) }
                             )
-                            defaultEdgeVoices.forEach { (vId, label) ->
-                                FilterChip(
-                                    selected = defaultVoiceId == vId,
-                                    onClick = { settingsManager.setDefaultVoiceId(vId) },
-                                    label = { Text(label, fontSize = 11.sp) }
-                                )
-                            }
                         }
                     }
-
-                    Text(
-                        text = "💡 O Edge TTS é mantido como o motor padrão global. Você pode escolher o Gemini 3.5 aqui para ser o padrão ou alterar a voz de qualquer livro individualmente no menu de voz do leitor.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp
-                    )
 
                     // Velocidade Padrão
                     Column {
@@ -1675,17 +1432,6 @@ fun SettingsScreen(
             onDismiss = { showMemoryDialog = false },
             onForceGc = { viewModel.forceGarbageCollection() },
             onClearLogs = { viewModel.clearMemoryLogs() }
-        )
-    }
-
-    if (showGeminiKeysDialog) {
-        GeminiApiKeyDialog(
-            apiKeys = apiKeys,
-            onDismiss = { showGeminiKeysDialog = false },
-            onToggleKey = { viewModel.toggleGeminiApiKey(it) },
-            onDeleteKey = { viewModel.deleteGeminiApiKey(it) },
-            onAddKey = { key, label -> viewModel.addGeminiApiKey(key, label) },
-            onTestKey = { apiKey -> viewModel.testGeminiApiKey(apiKey) }
         )
     }
 }

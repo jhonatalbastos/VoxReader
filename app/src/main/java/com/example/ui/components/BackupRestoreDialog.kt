@@ -134,7 +134,7 @@ fun BackupRestoreDialog(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Text("• Progresso de leitura (capítulo e parágrafo exatos)", fontSize = 11.sp)
-                        Text("• Configurações de voz (motor Edge TTS / Gemini e ID da voz)", fontSize = 11.sp)
+                        Text("• Configurações de voz (Edge TTS Neural HD e ID da voz)", fontSize = 11.sp)
                         Text("• Velocidade e tom personalizados de cada livro", fontSize = 11.sp)
                         Text("• Lista de palavras negativas e filtros coringa (*)", fontSize = 11.sp)
                         Text("• Preferências de tipografia e temas de leitura", fontSize = 11.sp)

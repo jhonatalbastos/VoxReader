@@ -40,12 +40,8 @@ data class AudiobookTaskState(
 class AudiobookDownloadManager(
     private val context: Context,
     private val edgeTtsClient: EdgeTtsClient,
-    private val geminiTtsClient: GeminiTtsClient,
     private val cacheManager: TtsCacheManager
 ) {
-    private val piperVoiceManager = com.example.tts.piper.PiperVoiceManager.getInstance(context)
-    private val piperTtsClient = com.example.tts.piper.PiperTtsClient.getInstance(context, piperVoiceManager)
-
     companion object {
         @Volatile
         private var instance: AudiobookDownloadManager? = null
@@ -53,14 +49,12 @@ class AudiobookDownloadManager(
         fun getInstance(
             context: Context,
             edgeTtsClient: EdgeTtsClient,
-            geminiTtsClient: GeminiTtsClient,
             cacheManager: TtsCacheManager
         ): AudiobookDownloadManager {
             return instance ?: synchronized(this) {
                 instance ?: AudiobookDownloadManager(
                     context.applicationContext,
                     edgeTtsClient,
-                    geminiTtsClient,
                     cacheManager
                 ).also { instance = it }
             }
@@ -133,7 +127,7 @@ class AudiobookDownloadManager(
                     if (sanitized.isBlank()) continue
 
                     val progressPercent = (idx + 1).toFloat() / paragraphs.size.coerceAtLeast(1)
-                    val status = "Sintetizando com ${when(engine) { "GEMINI_TTS" -> "Google AI Studio"; "PIPER_TTS" -> "Piper Offline"; else -> "Edge TTS" }} (${idx + 1}/${paragraphs.size})..."
+                    val status = "Sintetizando com Edge TTS HD (${idx + 1}/${paragraphs.size})..."
 
                     _taskState.value = _taskState.value.copy(
                         currentParagraph = idx + 1,
@@ -143,33 +137,30 @@ class AudiobookDownloadManager(
 
                     AudiobookDownloadService.updateProgress(context, book.title, status, (progressPercent * 100).toInt())
 
+                    val voiceId = if (book.voiceId.isNotBlank()) book.voiceId else "pt-BR-FranciscaNeural"
                     var audioFile = cacheManager.getCachedFile(
                         bookId = book.id,
                         chapterIndex = chapter.chapterIndex,
                         paragraphIndex = idx,
-                        engine = engine,
-                        voiceId = book.voiceId,
+                        engine = "EDGE_TTS",
+                        voiceId = voiceId,
                         speed = book.voiceSpeed
                     )
 
                     if (audioFile == null) {
-                        val bytes = when (engine) {
-                            "GEMINI_TTS" -> geminiTtsClient.synthesizeSpeech(sanitized, book.voiceId)
-                            "PIPER_TTS" -> piperTtsClient.synthesizeSpeech(sanitized, book.voiceId, book.voiceSpeed)
-                            else -> edgeTtsClient.synthesizeToMp3(
-                                text = sanitized,
-                                voiceId = book.voiceId,
-                                speed = book.voiceSpeed,
-                                pitch = book.voicePitch
-                            )
-                        }
+                        val bytes = edgeTtsClient.synthesizeToMp3(
+                            text = sanitized,
+                            voiceId = voiceId,
+                            speed = book.voiceSpeed,
+                            pitch = book.voicePitch
+                        )
 
                         audioFile = cacheManager.saveAudio(
                             bookId = book.id,
                             chapterIndex = chapter.chapterIndex,
                             paragraphIndex = idx,
-                            engine = engine,
-                            voiceId = book.voiceId,
+                            engine = "EDGE_TTS",
+                            voiceId = voiceId,
                             speed = book.voiceSpeed,
                             bytes = bytes
                         )

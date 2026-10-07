@@ -440,14 +440,7 @@ fun AudioPlayerSheet(
                     )
                 }
 
-                val voiceLabel = when (book.voiceEngine) {
-                    "GEMINI_TTS" -> "Gemini ${book.voiceId}"
-                    "PIPER_TTS" -> {
-                        val piperVoice = com.example.tts.piper.PiperVoiceCatalog.DEFAULT_BRAZILIAN_VOICES.find { it.id == book.voiceId }
-                        "Piper ${piperVoice?.name ?: book.voiceId.takeLast(10)}"
-                    }
-                    else -> VoiceCatalog.findById(book.voiceId).displayName
-                }
+                val voiceLabel = VoiceCatalog.findById(book.voiceId).displayName
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)

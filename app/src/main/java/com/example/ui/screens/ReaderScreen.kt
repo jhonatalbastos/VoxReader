@@ -93,7 +93,6 @@ import com.example.ui.components.BackgroundDownloadBanner
 import com.example.ui.components.ChromeStyleScrollbar
 import com.example.ui.components.EditChapterDialog
 import com.example.ui.components.EditParagraphDialog
-import com.example.ui.components.GeminiApiKeyDialog
 import com.example.ui.components.NegativeWordsDialog
 import com.example.ui.components.ReaderAppearanceSheet
 import com.example.ui.components.TableOfContentsSheet
@@ -127,13 +126,11 @@ fun ReaderScreen(
     val activeEngine by viewModel.ttsManager.activeEngine.collectAsStateWithLifecycle()
     val statusMessage by viewModel.ttsManager.statusMessage.collectAsStateWithLifecycle()
     val taskState by viewModel.downloadTaskState.collectAsStateWithLifecycle()
-    val apiKeys by viewModel.apiKeys.collectAsStateWithLifecycle()
 
     var showControls by remember { mutableStateOf(true) }
     var showTocSheet by remember { mutableStateOf(false) }
     var showAppearanceSheet by remember { mutableStateOf(false) }
     var showVoiceSettingsSheet by remember { mutableStateOf(false) }
-    var showGeminiKeysDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
     var showNegativeWordsDialog by remember { mutableStateOf(false) }
     var showEditChapterDialog by remember { mutableStateOf(false) }
@@ -415,14 +412,8 @@ fun ReaderScreen(
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary
                                         )
-                                        val engineVoiceDesc = when (book?.voiceEngine) {
-                                            "GEMINI_TTS" -> "Gemini 3.5 IA • ${book?.voiceId ?: "Voz"} (${String.format("%.1fx", book?.voiceSpeed ?: 1.0f)})"
-                                            "PIPER_TTS" -> {
-                                                val pVoice = com.example.tts.piper.PiperVoiceCatalog.DEFAULT_BRAZILIAN_VOICES.find { it.id == book?.voiceId }
-                                                "Piper Offline • ${pVoice?.name ?: "Voz Local"} (${String.format("%.1fx", book?.voiceSpeed ?: 1.0f)})"
-                                            }
-                                            else -> "Edge TTS • ${book?.voiceId?.substringBefore("Neural")?.substringAfter("-") ?: "Voz"} (${String.format("%.1fx", book?.voiceSpeed ?: 1.0f)})"
-                                        }
+                                        val voiceDisplayName = VoiceCatalog.findById(book?.voiceId ?: "").displayName.substringBefore(" (")
+                                        val engineVoiceDesc = "Edge Neural HD • $voiceDisplayName (${String.format("%.1fx", book?.voiceSpeed ?: 1.0f)})"
                                         Text(
                                             text = engineVoiceDesc,
                                             style = MaterialTheme.typography.bodySmall,
@@ -572,21 +563,7 @@ fun ReaderScreen(
             },
             onTestVoice = { engine, voiceId, speed, pitch ->
                 viewModel.testVoice(engine, voiceId, speed, pitch)
-            },
-            onManageGeminiKeys = {
-                showGeminiKeysDialog = true
             }
-        )
-    }
-
-    if (showGeminiKeysDialog) {
-        GeminiApiKeyDialog(
-            apiKeys = apiKeys,
-            onDismiss = { showGeminiKeysDialog = false },
-            onToggleKey = { viewModel.toggleGeminiApiKey(it) },
-            onDeleteKey = { viewModel.deleteGeminiApiKey(it) },
-            onAddKey = { key, label -> viewModel.addGeminiApiKey(key, label) },
-            onTestKey = { apiKey -> viewModel.testGeminiApiKey(apiKey) }
         )
     }
 

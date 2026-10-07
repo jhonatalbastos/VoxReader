@@ -9,10 +9,9 @@ import androidx.room.RoomDatabase
     entities = [
         BookEntity::class,
         ChapterEntity::class,
-        BookmarkEntity::class,
-        GeminiApiKeyEntity::class
+        BookmarkEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

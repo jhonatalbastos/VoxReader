@@ -38,6 +38,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import com.example.model.VoiceCatalog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -305,7 +306,7 @@ fun BookCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val voiceLabel = if (book.voiceEngine == "GEMINI_TTS") "Gemini ${book.voiceId}" else book.voiceId.substringBefore("Neural").substringAfter("-")
+                    val voiceLabel = VoiceCatalog.findById(book.voiceId).displayName
                     Surface(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(6.dp)

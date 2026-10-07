@@ -9,7 +9,6 @@ class BookRepository(val bookDao: BookDao) {
 
     val allBooks: Flow<List<BookEntity>> = bookDao.getAllBooks()
     val favoriteBooks: Flow<List<BookEntity>> = bookDao.getFavoriteBooks()
-    val allApiKeys: Flow<List<GeminiApiKeyEntity>> = bookDao.getAllApiKeys()
     val mostRecentBook: Flow<BookEntity?> = bookDao.getMostRecentBook()
 
     fun getPagedBooks(query: String = "", filter: String = "Todos"): Flow<PagingData<BookEntity>> {
@@ -118,15 +117,4 @@ class BookRepository(val bookDao: BookDao) {
     suspend fun addBookmark(bookmark: BookmarkEntity): Long = bookDao.insertBookmark(bookmark)
 
     suspend fun removeBookmark(id: Long) = bookDao.deleteBookmark(id)
-
-    // Gemini API Keys
-    suspend fun getActiveApiKeysSync(): List<GeminiApiKeyEntity> = bookDao.getActiveApiKeysSync()
-
-    suspend fun insertApiKey(key: GeminiApiKeyEntity): Long = bookDao.insertApiKey(key)
-
-    suspend fun updateApiKey(key: GeminiApiKeyEntity) = bookDao.updateApiKey(key)
-
-    suspend fun deleteApiKey(key: GeminiApiKeyEntity) = bookDao.deleteApiKey(key)
-
-    suspend fun deleteApiKeyById(id: Long) = bookDao.deleteApiKeyById(id)
 }

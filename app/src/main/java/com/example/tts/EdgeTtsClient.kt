@@ -99,19 +99,15 @@ class EdgeTtsClient {
 
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 try {
-                    // Step 1: Send speech.config
+                    // Step 1: Send speech.config (High-Definition 160kbps audio)
                     val configMsg = "X-Timestamp:$timestamp\r\n" +
                             "Content-Type:application/json; charset=utf-8\r\n" +
                             "Path:speech.config\r\n\r\n" +
-                            "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{\"sentenceBoundaryEnabled\":\"false\",\"wordBoundaryEnabled\":\"false\"},\"outputFormat\":\"audio-24khz-48kbitrate-mono-mp3\"}}}}\r\n"
+                            "{\"context\":{\"synthesis\":{\"audio\":{\"metadataoptions\":{\"sentenceBoundaryEnabled\":\"false\",\"wordBoundaryEnabled\":\"false\"},\"outputFormat\":\"audio-24khz-160kbitrate-mono-mp3\"}}}}\r\n"
                     webSocket.send(configMsg)
 
-                    // Step 2: Send SSML
-                    val lang = if (voiceId.startsWith("pt-")) "pt-BR" else if (voiceId.startsWith("es-")) "es-ES" else "en-US"
-                    val ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='$lang'>" +
-                            "<voice name='$voiceId'>" +
-                            "<prosody pitch='$pitchStr' rate='$rateStr'>$cleanText</prosody>" +
-                            "</voice></speak>"
+                    // Step 2: Send expressive SSML with natural breathing and dialogue pauses
+                    val ssml = buildExpressiveSsml(cleanText, voiceId, pitchStr, rateStr)
 
                     val ssmlMsg = "X-RequestId:$requestId\r\n" +
                             "Content-Type:application/ssml+xml\r\n" +
@@ -188,5 +184,49 @@ class EdgeTtsClient {
             .replace(">", "&gt;")
             .replace("\"", "&quot;")
             .replace("'", "&apos;")
+    }
+
+    /**
+     * Formata o SSML enriquecido com pausas naturais de respiração e diálogo (<break/>),
+     * garantindo expressividade profissional e cadência realista para livros e audiolivros.
+     */
+    private fun buildExpressiveSsml(
+        escapedText: String,
+        voiceId: String,
+        pitchStr: String,
+        rateStr: String
+    ): String {
+        val lang = if (voiceId.startsWith("pt-")) "pt-BR" else if (voiceId.startsWith("es-")) "es-ES" else "en-US"
+
+        val formattedBody = try {
+            generateExpressiveBody(escapedText)
+        } catch (_: Exception) {
+            escapedText
+        }
+
+        return "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='https://www.w3.org/2001/mstts' xml:lang='$lang'>" +
+                "<voice name='$voiceId'>" +
+                "<prosody pitch='$pitchStr' rate='$rateStr'>$formattedBody</prosody>" +
+                "</voice></speak>"
+    }
+
+    private fun generateExpressiveBody(escaped: String): String {
+        var s = escaped
+
+        // Pausa no início de diálogo (travessões ou hífen de fala)
+        s = s.replace(Regex("^([—–\\-])\\s*"), "<break time='180ms'/>$1 ")
+
+        // Pausa natural em travessões internos de diálogo (falas e incisos do narrador)
+        s = s.replace(Regex("\\s+([—–])\\s+"), " <break time='140ms'/>$1 ")
+
+        // Pausa expressiva de reticências (hesitação / suspense)
+        s = s.replace(Regex("(\\.\\.\\.|…)\\s*"), "<break time='260ms'/> ")
+
+        // Pausa em dois-pontos e ponto-e-vírgula
+        s = s.replace(Regex(":\\s+"), ":<break time='160ms'/> ")
+        s = s.replace(Regex(";\\s+"), ";<break time='140ms'/> ")
+
+        // Pausa de respiração suave ao final do parágrafo
+        return "$s<break time='200ms'/>"
     }
 }

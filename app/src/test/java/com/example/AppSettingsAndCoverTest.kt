@@ -69,17 +69,14 @@ class AppSettingsAndCoverTest {
         settings.setAppTheme(AppTheme.AMOLED)
         assertEquals(AppTheme.AMOLED, settings.appTheme.value)
 
-        // Test Default Voice Engine selection (Edge TTS as default, Gemini 3.5 optional)
+        // Test Default Voice Engine selection (Microsoft Edge TTS Neural HD)
         assertEquals("EDGE_TTS", settings.defaultVoiceEngine.value)
 
-        settings.setDefaultVoiceEngine("GEMINI_TTS")
-        assertEquals("GEMINI_TTS", settings.defaultVoiceEngine.value)
-
-        settings.setDefaultVoiceId("Puck")
-        assertEquals("Puck", settings.defaultVoiceId.value)
+        settings.setDefaultVoiceId("pt-BR-AntonioNeural")
+        assertEquals("pt-BR-AntonioNeural", settings.defaultVoiceId.value)
 
         // Reset to Edge TTS default
-        settings.setDefaultVoiceEngine("EDGE_TTS")
-        assertEquals("EDGE_TTS", settings.defaultVoiceEngine.value)
+        settings.setDefaultVoiceId("pt-BR-FranciscaNeural")
+        assertEquals("pt-BR-FranciscaNeural", settings.defaultVoiceId.value)
     }
 }

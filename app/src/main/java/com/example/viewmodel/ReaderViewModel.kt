@@ -18,7 +18,6 @@ import com.example.data.BookEntity
 import com.example.data.BookmarkEntity
 import com.example.data.BookRepository
 import com.example.data.ChapterEntity
-import com.example.data.GeminiApiKeyEntity
 import com.example.model.GoogleUser
 import com.example.model.ReadSegment
 import com.example.model.ReaderFont
@@ -38,9 +37,6 @@ import com.example.util.MemoryStats
 import com.example.tts.AudiobookDownloadManager
 import com.example.tts.AudiobookTaskState
 import com.example.tts.EdgeTtsClient
-import com.example.tts.GeminiApiKeyManager
-import com.example.tts.GeminiTtsClient
-import com.example.tts.GeminiVoiceCatalog
 import com.example.tts.ReaderTtsManager
 import com.example.tts.TtsEngineType
 import kotlinx.coroutines.Dispatchers
@@ -60,8 +56,6 @@ private const val TAG = "ReaderViewModel"
 class ReaderViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: BookRepository
-    val apiKeyManager: GeminiApiKeyManager
-    val geminiTtsClient: GeminiTtsClient
     val ttsManager: ReaderTtsManager
     val downloadManager: AudiobookDownloadManager
     val googleAuthManager: GoogleAuthManager
@@ -80,7 +74,6 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     val mostRecentBook: StateFlow<BookEntity?>
     val activeMiniPlayerBook: StateFlow<BookEntity?>
     val favoriteBooks: StateFlow<List<BookEntity>>
-    val apiKeys: StateFlow<List<GeminiApiKeyEntity>>
 
     val isTtsReading: StateFlow<Boolean>
     val isTtsPlaying: StateFlow<Boolean>
@@ -132,14 +125,10 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         val database = AppDatabase.getDatabase(application)
         repository = BookRepository(database.bookDao())
 
-        apiKeyManager = GeminiApiKeyManager(repository)
-        geminiTtsClient = GeminiTtsClient(apiKeyManager)
-
-        ttsManager = ReaderTtsManager(application.applicationContext, geminiTtsClient)
+        ttsManager = ReaderTtsManager(application.applicationContext)
         downloadManager = AudiobookDownloadManager.getInstance(
             application.applicationContext,
             EdgeTtsClient(),
-            geminiTtsClient,
             ttsManager.cacheManager
         )
 
@@ -208,12 +197,6 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             initialValue = emptyList()
         )
 
-        apiKeys = repository.allApiKeys.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = emptyList()
-        )
-
         // Seed sample classic books on first run if database is empty
         viewModelScope.launch(Dispatchers.IO) {
             val existing = repository.allBooks.first()
@@ -223,48 +206,18 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                     repository.insertBookWithChapters(book, chapters)
                 }
             }
-
-            // Seed preloaded Gemini API keys with account labels
-            val currentKeys = repository.getActiveApiKeysSync().map { it.apiKey.trim() }
-            val defaultKeys = listOf(
-                "AIzaSyDeKpzW0GlEHV17Y2nyQ0dWTSG3IdTU02U" to "jhonatalbastos@gmail.com",
-                "AIzaSyARIIyuYY3oyw5731OPUQTayzOzrZZEhzQ" to "canalbiblianarradaoficial@gmail.com",
-                "AIzaSyBy3Qp1K2oDR2T3JRgRDfN-nrfrqyP5aiQ" to "bizarricesgrok@gmail.com",
-                "AIzaSyBls4S1TgJdzKhlWN4tC7r9T4-qdg9BwSw" to "luzdapalavratv@gmail.com",
-                "AIzaSyBEf0-raol6qdN90ZJcNQdq1trVMyy1i_U" to "receitasfecd@gmail.com",
-                "AIzaSyANgf1fNcSl4lAuEE5HM0hS9ziT3hUIXpY" to "jhonatabastos20260410@gmail.com"
-            )
-            defaultKeys.forEach { (key, label) ->
-                if (!currentKeys.contains(key)) {
-                    repository.insertApiKey(
-                        GeminiApiKeyEntity(
-                            apiKey = key,
-                            label = label,
-                            isActive = true
-                        )
-                    )
-                }
-            }
         }
     }
 
     fun openBook(bookId: Long) {
         viewModelScope.launch {
             val book = repository.getBookByIdSync(bookId) ?: return@launch
-            val isGemini = book.voiceEngine == "GEMINI_TTS"
-            val isValidGemini = isGemini && GeminiVoiceCatalog.VOICES.any { it.name == book.voiceId }
             val isValidEdge = book.voiceEngine == "EDGE_TTS" && VoiceCatalog.VOICES.any { it.id == book.voiceId }
 
-            val normalizedBook = if (!isValidGemini && !isValidEdge) {
-                if (isGemini) {
-                    val fixed = book.copy(voiceEngine = "GEMINI_TTS", voiceId = "Puck")
-                    repository.updateVoiceSettings(bookId, "GEMINI_TTS", "Puck", fixed.voiceSpeed, fixed.voicePitch)
-                    fixed
-                } else {
-                    val fixed = book.copy(voiceEngine = "EDGE_TTS", voiceId = "pt-BR-FranciscaNeural")
-                    repository.updateVoiceSettings(bookId, "EDGE_TTS", "pt-BR-FranciscaNeural", fixed.voiceSpeed, fixed.voicePitch)
-                    fixed
-                }
+            val normalizedBook = if (!isValidEdge) {
+                val fixed = book.copy(voiceEngine = "EDGE_TTS", voiceId = "pt-BR-FranciscaNeural")
+                repository.updateVoiceSettings(bookId, "EDGE_TTS", "pt-BR-FranciscaNeural", fixed.voiceSpeed, fixed.voicePitch)
+                fixed
             } else {
                 book
             }
@@ -342,7 +295,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // ==========================================
-    // TTS Controls (Edge TTS & Gemini AI Studio)
+    // TTS Controls (Microsoft Edge TTS Neural HD)
     // ==========================================
 
     fun startReadAloud(fromParagraphIndex: Int? = null) {
@@ -747,39 +700,6 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // ==========================================
-    // Gemini API Keys Management (Round-Robin)
-    // ==========================================
-
-    fun addGeminiApiKey(apiKey: String, label: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.insertApiKey(
-                GeminiApiKeyEntity(
-                    apiKey = apiKey.trim(),
-                    label = label.trim()
-                )
-            )
-            _userMessage.value = "Chave da API Google AI Studio adicionada!"
-        }
-    }
-
-    fun toggleGeminiApiKey(key: GeminiApiKeyEntity) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.updateApiKey(key)
-        }
-    }
-
-    suspend fun testGeminiApiKey(apiKey: String): Result<String> {
-        return ttsManager.geminiTtsClient.testApiKey(apiKey)
-    }
-
-    fun deleteGeminiApiKey(keyId: Long) {
-        viewModelScope.launch(Dispatchers.IO) {
-            repository.deleteApiKeyById(keyId)
-            _userMessage.value = "Chave de API removida."
-        }
-    }
-
-    // ==========================================
     // Audiobook Pre-caching and Export
     // ==========================================
 
@@ -872,8 +792,8 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 )
                 val randomColors = paletteColors.random()
 
-                val defaultEngine = appSettingsManager.defaultVoiceEngine.value
-                val defaultVoice = if (defaultEngine == "GEMINI_TTS") "Puck" else appSettingsManager.defaultVoiceId.value
+                val defaultEngine = "EDGE_TTS"
+                val defaultVoice = appSettingsManager.defaultVoiceId.value.ifBlank { "pt-BR-FranciscaNeural" }
 
                 val newBook = BookEntity(
                     title = parsed.title,
@@ -918,8 +838,8 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                         )
                     }
 
-                val defaultEngine = appSettingsManager.defaultVoiceEngine.value
-                val defaultVoice = if (defaultEngine == "GEMINI_TTS") "Puck" else appSettingsManager.defaultVoiceId.value
+                val defaultEngine = "EDGE_TTS"
+                val defaultVoice = appSettingsManager.defaultVoiceId.value.ifBlank { "pt-BR-FranciscaNeural" }
 
                 val book = BookEntity(
                     title = title.ifBlank { "Livro Personalizado" },

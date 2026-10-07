@@ -40,8 +40,7 @@ class TtsCacheManager(private val context: Context) {
     ): String {
         val speedStr = "%.2f".format(speed).replace('.', '_')
         val cleanEngine = engine.lowercase()
-        val ext = if (cleanEngine.contains("gemini")) "wav" else "mp3"
-        return "tts_${bookId}_c${chapterIndex}_p${paragraphIndex}_${cleanEngine}_${voiceId}_${speedStr}.$ext"
+        return "tts_${bookId}_c${chapterIndex}_p${paragraphIndex}_${cleanEngine}_${voiceId}_${speedStr}.mp3"
     }
 
     fun getCachedFile(
