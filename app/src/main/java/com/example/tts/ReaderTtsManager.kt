@@ -25,6 +25,7 @@ private const val TAG = "ReaderTtsManager"
 enum class TtsEngineType {
     EDGE_NEURAL,
     GEMINI_AI_STUDIO,
+    PIPER_LOCAL,
     LOCAL_ANDROID
 }
 
@@ -40,6 +41,8 @@ class ReaderTtsManager(
     }
 
     private val edgeTtsClient = EdgeTtsClient()
+    val piperVoiceManager = com.example.tts.piper.PiperVoiceManager.getInstance(context)
+    val piperTtsClient = com.example.tts.piper.PiperTtsClient.getInstance(context, piperVoiceManager)
     val cacheManager = TtsCacheManager(context)
     private val scope = CoroutineScope(Dispatchers.Main + Job())
 
@@ -230,7 +233,11 @@ class ReaderTtsManager(
         if (cachedFile != null) {
             _isBuffering.value = false
             _statusMessage.value = null
-            _activeEngine.value = if (currentVoiceEngine == "GEMINI_TTS") TtsEngineType.GEMINI_AI_STUDIO else TtsEngineType.EDGE_NEURAL
+            _activeEngine.value = when (currentVoiceEngine) {
+                "GEMINI_TTS" -> TtsEngineType.GEMINI_AI_STUDIO
+                "PIPER_TTS" -> TtsEngineType.PIPER_LOCAL
+                else -> TtsEngineType.EDGE_NEURAL
+            }
             playAudioFile(cachedFile)
             triggerLookaheadPrefetch(currentIndex + 1)
             return
@@ -239,28 +246,39 @@ class ReaderTtsManager(
         // Needs synthesis
         _isBuffering.value = true
         val isGeminiEngine = currentVoiceEngine == "GEMINI_TTS"
-        _statusMessage.value = if (isGeminiEngine) {
-            "Carregando fala com IA Gemini 3.5 ($currentVoiceId)..."
-        } else {
-            "Carregando fala neural Edge TTS..."
+        val isPiperEngine = currentVoiceEngine == "PIPER_TTS"
+        _statusMessage.value = when {
+            isGeminiEngine -> "Carregando fala com IA Gemini 3.5 ($currentVoiceId)..."
+            isPiperEngine -> "Sintetizando fala local Piper ($currentVoiceId)..."
+            else -> "Carregando fala neural Edge TTS..."
         }
 
         playbackJob?.cancel()
         playbackJob = scope.launch {
             try {
                 val audioBytes = withContext(Dispatchers.IO) {
-                    if (isGeminiEngine) {
-                        geminiTtsClient.synthesizeSpeech(
-                            text = sanitizedText,
-                            voiceName = currentVoiceId
-                        )
-                    } else {
-                        edgeTtsClient.synthesizeToMp3(
-                            text = sanitizedText,
-                            voiceId = currentVoiceId,
-                            speed = currentSpeed,
-                            pitch = currentPitch
-                        )
+                    when {
+                        isGeminiEngine -> {
+                            geminiTtsClient.synthesizeSpeech(
+                                text = sanitizedText,
+                                voiceName = currentVoiceId
+                            )
+                        }
+                        isPiperEngine -> {
+                            piperTtsClient.synthesizeSpeech(
+                                text = sanitizedText,
+                                voiceId = currentVoiceId,
+                                speed = currentSpeed
+                            )
+                        }
+                        else -> {
+                            edgeTtsClient.synthesizeToMp3(
+                                text = sanitizedText,
+                                voiceId = currentVoiceId,
+                                speed = currentSpeed,
+                                pitch = currentPitch
+                            )
+                        }
                     }
                 }
 
@@ -273,7 +291,7 @@ class ReaderTtsManager(
                         bookId = currentBookId,
                         chapterIndex = currentChapterIndex,
                         paragraphIndex = currentIndex,
-                        engine = if (isGeminiEngine) "GEMINI_TTS" else "EDGE_TTS",
+                        engine = currentVoiceEngine,
                         voiceId = currentVoiceId,
                         speed = currentSpeed,
                         bytes = audioBytes
@@ -282,7 +300,11 @@ class ReaderTtsManager(
 
                 _isBuffering.value = false
                 _statusMessage.value = null
-                _activeEngine.value = if (isGeminiEngine) TtsEngineType.GEMINI_AI_STUDIO else TtsEngineType.EDGE_NEURAL
+                _activeEngine.value = when {
+                    isGeminiEngine -> TtsEngineType.GEMINI_AI_STUDIO
+                    isPiperEngine -> TtsEngineType.PIPER_LOCAL
+                    else -> TtsEngineType.EDGE_NEURAL
+                }
                 playAudioFile(savedFile)
                 triggerLookaheadPrefetch(currentIndex + 1)
 
@@ -292,6 +314,15 @@ class ReaderTtsManager(
                     e.message?.contains("API", ignoreCase = true) == true ||
                     e.message?.contains("401", ignoreCase = true) == true ||
                     e.message?.contains("403", ignoreCase = true) == true
+
+                // Se o motor selecionado foi Piper e falhou, tenta usar fala local do sistema
+                if (isPiperEngine) {
+                    _isBuffering.value = false
+                    _statusMessage.value = "Piper offline: usando voz do sistema Android."
+                    _activeEngine.value = TtsEngineType.LOCAL_ANDROID
+                    playWithLocalTts(sanitizedText)
+                    return@launch
+                }
 
                 // Se o motor selecionado foi Gemini e falhou, tenta fallback automático para Edge TTS
                 if (isGeminiEngine) {
@@ -355,7 +386,7 @@ class ReaderTtsManager(
                     bookId = currentBookId,
                     chapterIndex = currentChapterIndex,
                     paragraphIndex = targetIndex,
-                    engine = "EDGE_TTS",
+                    engine = currentVoiceEngine,
                     voiceId = currentVoiceId,
                     speed = currentSpeed
                 )
@@ -366,19 +397,23 @@ class ReaderTtsManager(
 
                     if (textToPreload.isNotBlank()) {
                         try {
-                            val audioBytes = edgeTtsClient.synthesizeToMp3(
-                                text = textToPreload,
-                                voiceId = currentVoiceId,
-                                speed = currentSpeed,
-                                pitch = currentPitch
-                            )
+                            val audioBytes = when (currentVoiceEngine) {
+                                "GEMINI_TTS" -> geminiTtsClient.synthesizeSpeech(text = textToPreload, voiceName = currentVoiceId)
+                                "PIPER_TTS" -> piperTtsClient.synthesizeSpeech(text = textToPreload, voiceId = currentVoiceId, speed = currentSpeed)
+                                else -> edgeTtsClient.synthesizeToMp3(
+                                    text = textToPreload,
+                                    voiceId = currentVoiceId,
+                                    speed = currentSpeed,
+                                    pitch = currentPitch
+                                )
+                            }
 
                             if (audioBytes.isNotEmpty()) {
                                 cacheManager.saveAudio(
                                     bookId = currentBookId,
                                     chapterIndex = currentChapterIndex,
                                     paragraphIndex = targetIndex,
-                                    engine = "EDGE_TTS",
+                                    engine = currentVoiceEngine,
                                     voiceId = currentVoiceId,
                                     speed = currentSpeed,
                                     bytes = audioBytes
@@ -580,14 +615,14 @@ class ReaderTtsManager(
                 _statusMessage.value = "Gerando amostra ($voiceId)..."
                 _isBuffering.value = true
                 val bytes = withContext(Dispatchers.IO) {
-                    if (engine == "GEMINI_TTS") {
-                        geminiTtsClient.synthesizeSpeech(sampleText, voiceId)
-                    } else {
-                        edgeTtsClient.synthesizeToMp3(sampleText, voiceId, speed, pitch)
+                    when (engine) {
+                        "GEMINI_TTS" -> geminiTtsClient.synthesizeSpeech(sampleText, voiceId)
+                        "PIPER_TTS" -> piperTtsClient.synthesizeSpeech(sampleText, voiceId, speed)
+                        else -> edgeTtsClient.synthesizeToMp3(sampleText, voiceId, speed, pitch)
                     }
                 }
                 _statusMessage.value = null
-                val ext = if (engine == "GEMINI_TTS") ".wav" else ".mp3"
+                val ext = if (engine == "EDGE_TTS") ".mp3" else ".wav"
                 val sampleFile = withContext(Dispatchers.IO) {
                     val file = File.createTempFile("sample_voice_", ext, context.cacheDir)
                     file.outputStream().use { it.write(bytes) }
@@ -598,6 +633,9 @@ class ReaderTtsManager(
                 Log.e(TAG, "Falha no teste de voz: ${e.message}", e)
                 _statusMessage.value = "Erro no teste: ${e.localizedMessage}"
                 _isBuffering.value = false
+                if (engine == "PIPER_TTS") {
+                    playWithLocalTts(sampleText)
+                }
             }
         }
     }

@@ -78,15 +78,34 @@ fun VoiceSettingsSheet(
     onManageGeminiKeys: () -> Unit = {}
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
+    val piperVoiceManager = remember { com.example.tts.piper.PiperVoiceManager.getInstance(context) }
+    val installedVoiceIds by piperVoiceManager.installedVoiceIds.collectAsStateWithLifecycle(initialValue = emptySet())
+    val downloadProgress by piperVoiceManager.downloadProgress.collectAsStateWithLifecycle(initialValue = emptyMap())
+
+    var showPiperDialogFromSheet by remember { mutableStateOf(false) }
 
     var selectedEngine by remember {
-        mutableStateOf(if (book.voiceEngine == "GEMINI_TTS") "GEMINI_TTS" else "EDGE_TTS")
+        mutableStateOf(
+            when (book.voiceEngine) {
+                "GEMINI_TTS" -> "GEMINI_TTS"
+                "PIPER_TTS" -> "PIPER_TTS"
+                else -> "EDGE_TTS"
+            }
+        )
     }
     var selectedVoiceId by remember {
-        val initialVoice = if (selectedEngine == "GEMINI_TTS") {
-            if (GeminiVoiceCatalog.VOICES.any { it.name == book.voiceId }) book.voiceId else "Puck"
-        } else {
-            if (VoiceCatalog.VOICES.any { it.id == book.voiceId }) book.voiceId else "pt-BR-FranciscaNeural"
+        val initialVoice = when (selectedEngine) {
+            "GEMINI_TTS" -> {
+                if (GeminiVoiceCatalog.VOICES.any { it.name == book.voiceId }) book.voiceId else "Puck"
+            }
+            "PIPER_TTS" -> {
+                val allVoices = piperVoiceManager.getAllVoices()
+                if (allVoices.any { it.id == book.voiceId }) book.voiceId else (piperVoiceManager.installedVoiceIds.value.firstOrNull() ?: com.example.tts.piper.PiperVoiceCatalog.DEFAULT_VOICE.id)
+            }
+            else -> {
+                if (VoiceCatalog.VOICES.any { it.id == book.voiceId }) book.voiceId else "pt-BR-FranciscaNeural"
+            }
         }
         mutableStateOf(initialVoice)
     }
@@ -106,6 +125,21 @@ fun VoiceSettingsSheet(
             "Español" -> it.locale.startsWith("es")
             else -> true
         }
+    }
+
+    if (showPiperDialogFromSheet) {
+        PiperVoiceManagerDialog(
+            voiceManager = piperVoiceManager,
+            selectedVoiceId = selectedVoiceId,
+            onSelectVoice = { voiceId ->
+                selectedVoiceId = voiceId
+                showPiperDialogFromSheet = false
+            },
+            onTestVoiceSample = { voiceId ->
+                onTestVoice("PIPER_TTS", voiceId, currentSpeed, currentPitch)
+            },
+            onDismiss = { showPiperDialogFromSheet = false }
+        )
     }
 
     ModalBottomSheet(
@@ -148,7 +182,11 @@ fun VoiceSettingsSheet(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "${if (selectedEngine == "GEMINI_TTS") "Google Gemini 3.5" else "Microsoft Edge TTS"} • ${book.title}",
+                        text = when (selectedEngine) {
+                            "GEMINI_TTS" -> "Google Gemini 3.5 • ${book.title}"
+                            "PIPER_TTS" -> "Piper TTS (Local & Offline) • ${book.title}"
+                            else -> "Microsoft Edge TTS • ${book.title}"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1
@@ -158,7 +196,7 @@ fun VoiceSettingsSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Engine Selector: Edge TTS vs Gemini 3.5
+            // Engine Selector: Edge TTS vs Gemini 3.5 vs Piper TTS
             Text(
                 text = "Motor de Leitura em Voz Alta:",
                 style = MaterialTheme.typography.labelMedium,
@@ -194,6 +232,12 @@ fun VoiceSettingsSheet(
                     selected = selectedEngine == "PIPER_TTS",
                     onClick = {
                         selectedEngine = "PIPER_TTS"
+                        val installed = piperVoiceManager.installedVoiceIds.value
+                        if (installed.isNotEmpty() && !installed.contains(selectedVoiceId)) {
+                            selectedVoiceId = installed.first()
+                        } else if (!piperVoiceManager.getAllVoices().any { it.id == selectedVoiceId }) {
+                            selectedVoiceId = com.example.tts.piper.PiperVoiceCatalog.DEFAULT_VOICE.id
+                        }
                     },
                     label = { Text("Piper TTS (Local)", fontSize = 12.sp) }
                 )
@@ -202,65 +246,104 @@ fun VoiceSettingsSheet(
             Spacer(modifier = Modifier.height(10.dp))
 
             if (selectedEngine == "PIPER_TTS") {
-                val piperVoiceManager = com.example.tts.piper.PiperVoiceManager.getInstance(LocalContext.current)
-                val installedVoiceIds by piperVoiceManager.installedVoiceIds.collectAsStateWithLifecycle(initialValue = emptySet())
-                val installedVoices = piperVoiceManager.getAllVoices().filter { it.id in installedVoiceIds }
+                val availablePiperVoices = (com.example.tts.piper.PiperVoiceCatalog.DEFAULT_BRAZILIAN_VOICES + piperVoiceManager.getAllVoices()).distinctBy { it.id }
 
-                if (installedVoices.isEmpty()) {
-                    Text(
-                        text = "Nenhuma voz Piper instalada no dispositivo. Acesse as Configurações do app para gerenciar o catálogo.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = "Vozes Piper (Local/Offline):",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    TextButton(
+                        onClick = { showPiperDialogFromSheet = true },
+                        modifier = Modifier.height(28.dp)
                     ) {
-                        items(installedVoices) { voice ->
-                            val isSelected = selectedVoiceId == voice.id
-                            Surface(
-                                selected = isSelected,
-                                onClick = { selectedVoiceId = voice.id },
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(
-                                    width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                                ),
-                                modifier = Modifier.width(130.dp)
+                        Text("Gerenciar Catálogo", fontSize = 11.sp)
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(availablePiperVoices, key = { it.id }) { voice ->
+                        val isSelected = selectedVoiceId == voice.id
+                        val isInstalled = installedVoiceIds.contains(voice.id)
+                        val progress = downloadProgress[voice.id]
+                        val isDownloading = progress != null
+
+                        Surface(
+                            selected = isSelected,
+                            onClick = { selectedVoiceId = voice.id },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+                            ),
+                            modifier = Modifier.width(135.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Column(
-                                    modifier = Modifier.padding(12.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = null,
-                                        tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(24.dp)
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = voice.name,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    text = voice.quality,
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                if (isDownloading) {
+                                    LinearProgressIndicator(
+                                        progress = { progress ?: 0f },
+                                        modifier = Modifier.fillMaxWidth().height(4.dp)
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = voice.name,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp,
-                                        textAlign = TextAlign.Center
+                                        text = "${((progress ?: 0f) * 100).toInt()}%",
+                                        fontSize = 9.sp,
+                                        color = MaterialTheme.colorScheme.primary
                                     )
-                                    Text(
-                                        text = voice.quality,
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                } else if (isInstalled) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("✓ Offline", fontSize = 9.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = {
+                                            selectedVoiceId = voice.id
+                                            piperVoiceManager.downloadVoice(voice)
+                                        },
+                                        shape = RoundedCornerShape(6.dp),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                                        modifier = Modifier.height(24.dp)
+                                    ) {
+                                        Text("⬇ Baixar", fontSize = 9.sp)
+                                    }
                                 }
                             }
                         }
@@ -516,7 +599,11 @@ fun VoiceSettingsSheet(
             // Testing voice indicator
             if (isTestingVoice) {
                 Text(
-                    text = "Gerando áudio com a voz selecionada via Edge TTS...",
+                    text = when (selectedEngine) {
+                        "GEMINI_TTS" -> "Gerando áudio com a voz selecionada via Google Gemini..."
+                        "PIPER_TTS" -> "Gerando áudio com a voz local via Piper TTS..."
+                        else -> "Gerando áudio com a voz selecionada via Edge TTS..."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.primary,

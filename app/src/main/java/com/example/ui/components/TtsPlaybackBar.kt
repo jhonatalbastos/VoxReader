@@ -74,7 +74,14 @@ fun TtsPlaybackBar(
         exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
         modifier = modifier
     ) {
-        val voice = VoiceCatalog.findById(voiceId)
+        val voiceDisplayName = when (engineType) {
+            TtsEngineType.PIPER_LOCAL -> {
+                val piperVoice = com.example.tts.piper.PiperVoiceCatalog.DEFAULT_BRAZILIAN_VOICES.find { it.id == voiceId }
+                piperVoice?.name ?: "Piper"
+            }
+            TtsEngineType.GEMINI_AI_STUDIO -> "Gemini $voiceId"
+            else -> VoiceCatalog.findById(voiceId).displayName.substringBefore(" (")
+        }
 
         Surface(
             modifier = Modifier
@@ -117,7 +124,7 @@ fun TtsPlaybackBar(
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = voice.displayName.substringBefore(" ("),
+                                    text = voiceDisplayName,
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -141,8 +148,14 @@ fun TtsPlaybackBar(
                             }
 
                             // Engine Badge or Status
+                            val defaultEngineStatus = when (engineType) {
+                                TtsEngineType.PIPER_LOCAL -> "Piper Offline • $paragraphProgressText"
+                                TtsEngineType.GEMINI_AI_STUDIO -> "Gemini 3.5 IA • $paragraphProgressText"
+                                TtsEngineType.LOCAL_ANDROID -> "TTS Local Sistema • $paragraphProgressText"
+                                TtsEngineType.EDGE_NEURAL -> "Microsoft Edge Neural • $paragraphProgressText"
+                            }
                             Text(
-                                text = statusMessage ?: if (engineType == TtsEngineType.EDGE_NEURAL) "Microsoft Edge Neural • $paragraphProgressText" else "TTS Local • $paragraphProgressText",
+                                text = statusMessage ?: defaultEngineStatus,
                                 fontSize = 11.sp,
                                 color = if (statusMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                             )

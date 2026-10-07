@@ -224,7 +224,11 @@ fun LibraryMiniPlayerBar(
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = "Edge TTS",
+                                        text = when (book.voiceEngine) {
+                                            "GEMINI_TTS" -> "Gemini 3.5"
+                                            "PIPER_TTS" -> "Piper Offline"
+                                            else -> "Edge TTS"
+                                        },
                                         style = MaterialTheme.typography.labelSmall,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,

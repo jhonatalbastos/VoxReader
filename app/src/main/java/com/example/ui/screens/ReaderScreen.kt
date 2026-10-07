@@ -415,8 +415,16 @@ fun ReaderScreen(
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.primary
                                         )
+                                        val engineVoiceDesc = when (book?.voiceEngine) {
+                                            "GEMINI_TTS" -> "Gemini 3.5 IA • ${book?.voiceId ?: "Voz"} (${String.format("%.1fx", book?.voiceSpeed ?: 1.0f)})"
+                                            "PIPER_TTS" -> {
+                                                val pVoice = com.example.tts.piper.PiperVoiceCatalog.DEFAULT_BRAZILIAN_VOICES.find { it.id == book?.voiceId }
+                                                "Piper Offline • ${pVoice?.name ?: "Voz Local"} (${String.format("%.1fx", book?.voiceSpeed ?: 1.0f)})"
+                                            }
+                                            else -> "Edge TTS • ${book?.voiceId?.substringBefore("Neural")?.substringAfter("-") ?: "Voz"} (${String.format("%.1fx", book?.voiceSpeed ?: 1.0f)})"
+                                        }
                                         Text(
-                                            text = "Edge TTS • ${book?.voiceId?.substringBefore("Neural")?.substringAfter("-") ?: "Voz"} (${String.format("%.1fx", book?.voiceSpeed ?: 1.0f)})",
+                                            text = engineVoiceDesc,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )

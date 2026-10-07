@@ -43,6 +43,9 @@ class AudiobookDownloadManager(
     private val geminiTtsClient: GeminiTtsClient,
     private val cacheManager: TtsCacheManager
 ) {
+    private val piperVoiceManager = com.example.tts.piper.PiperVoiceManager.getInstance(context)
+    private val piperTtsClient = com.example.tts.piper.PiperTtsClient.getInstance(context, piperVoiceManager)
+
     companion object {
         @Volatile
         private var instance: AudiobookDownloadManager? = null
@@ -130,7 +133,7 @@ class AudiobookDownloadManager(
                     if (sanitized.isBlank()) continue
 
                     val progressPercent = (idx + 1).toFloat() / paragraphs.size.coerceAtLeast(1)
-                    val status = "Sintetizando com ${if (engine == "GEMINI_TTS") "Google AI Studio" else "Edge TTS"} (${idx + 1}/${paragraphs.size})..."
+                    val status = "Sintetizando com ${when(engine) { "GEMINI_TTS" -> "Google AI Studio"; "PIPER_TTS" -> "Piper Offline"; else -> "Edge TTS" }} (${idx + 1}/${paragraphs.size})..."
 
                     _taskState.value = _taskState.value.copy(
                         currentParagraph = idx + 1,
@@ -150,18 +153,22 @@ class AudiobookDownloadManager(
                     )
 
                     if (audioFile == null) {
-                        val bytes = edgeTtsClient.synthesizeToMp3(
-                            text = sanitized,
-                            voiceId = book.voiceId,
-                            speed = book.voiceSpeed,
-                            pitch = book.voicePitch
-                        )
+                        val bytes = when (engine) {
+                            "GEMINI_TTS" -> geminiTtsClient.synthesizeSpeech(sanitized, book.voiceId)
+                            "PIPER_TTS" -> piperTtsClient.synthesizeSpeech(sanitized, book.voiceId, book.voiceSpeed)
+                            else -> edgeTtsClient.synthesizeToMp3(
+                                text = sanitized,
+                                voiceId = book.voiceId,
+                                speed = book.voiceSpeed,
+                                pitch = book.voicePitch
+                            )
+                        }
 
                         audioFile = cacheManager.saveAudio(
                             bookId = book.id,
                             chapterIndex = chapter.chapterIndex,
                             paragraphIndex = idx,
-                            engine = "EDGE_TTS",
+                            engine = engine,
                             voiceId = book.voiceId,
                             speed = book.voiceSpeed,
                             bytes = bytes

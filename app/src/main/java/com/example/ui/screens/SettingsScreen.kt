@@ -1382,6 +1382,9 @@ fun SettingsScreen(
                                     settingsManager.setDefaultVoiceId(newVoiceId)
                                     showPiperDialog = false
                                 },
+                                onTestVoiceSample = { voiceId ->
+                                    viewModel.testVoice("PIPER_TTS", voiceId, 1.0f, 1.0f)
+                                },
                                 onDismiss = { showPiperDialog = false }
                             )
                         }
